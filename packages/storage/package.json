@@ -11,8 +11,24 @@
       "default": "./dist/index.js"
     }
   },
+  "bin": {
+    "docs-platform-migrate": "./dist/cli/migrate.js"
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
   "scripts": {
+    "migrate": "tsx src/cli/migrate.ts",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1"
+  },
+  "dependencies": {
+    "@docs-platform/contracts": "workspace:*",
+    "pg": "8.23.1",
+    "pgvector": "0.3.0"
   }
 }

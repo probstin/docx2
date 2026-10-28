@@ -1,0 +1,6 @@
+node_modules/
+build/
+.docusaurus/
+# Content the builder copies in (in its work copy); only the placeholders above are tracked.
+/repo/
+/static/platform/

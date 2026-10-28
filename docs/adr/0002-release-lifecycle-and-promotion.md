@@ -14,7 +14,7 @@ PLAN §9 requires immutable revisions, a site and index that always match, recov
 
 - _Build:_ `RECEIVED → QUEUED → CHECKOUT → BUILDING → INDEXING → VALIDATING → READY → PUBLISHING → PUBLISHED`, plus `FAILED`/`SUPERSEDED`. The PLAN's terminal `ACTIVE` is renamed `PUBLISHED`, because "currently live" belongs to the release, not the build.
 - _Release:_ `CANDIDATE → READY → ACTIVE ⇄ INACTIVE → PRUNED`, plus `FAILED`. Exactly one `ACTIVE` release, enforced by a partial unique index.
-- The builder Job owns `CHECKOUT…READY` and writes the release as `CANDIDATE → READY`. The API owns queueing, `PUBLISHING`, `PUBLISHED`, activation, and pruning.
+- The API claims a queued build (`QUEUED → CHECKOUT`, atomically with `FOR UPDATE SKIP LOCKED`) at the moment it dispatches the Job. The builder Job then owns transitions out of `CHECKOUT` through `READY` and writes the release as `CANDIDATE → READY`. The API owns queueing, claiming, `PUBLISHING`, `PUBLISHED`, activation, and pruning.
 
 **PVC layout** follows PLAN §9.3 (`ArtifactLayout`). The builder works in `staging/build-<id>/`, then renames it into `releases/<releaseId>/`. `manifest.json` is written **last**, and a release directory without a valid manifest is treated as garbage.
 

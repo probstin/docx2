@@ -1,0 +1,4 @@
+/* Platform-owned base styles. Brand colors come from theme.generated.css. */
+:root {
+  --ifm-font-family-base: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}

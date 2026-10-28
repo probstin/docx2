@@ -1,0 +1,21 @@
+{
+  "name": "@docs-platform/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Versioned schemas and shared types (docs.yaml, API, chat, lifecycle)",
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "zod": "4.6.7"
+  }
+}

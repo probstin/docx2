@@ -1,0 +1,6 @@
+{
+  "name": "@docs-platform/docusaurus-template",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Fixed, platform-owned Docusaurus project that team content is injected into (populated in Wave 1)"
+}

@@ -4,6 +4,8 @@
   "private": true,
   "description": "Fixed, platform-owned Docusaurus 3 project that team content is injected into by apps/builder",
   "dependencies": {
+    "@docs-platform/chat-react": "workspace:*",
+    "@docs-platform/contracts": "workspace:*",
     "@docusaurus/core": "3.10.2",
     "@docusaurus/preset-classic": "3.10.2",
     "@mdx-js/react": "3.1.1",

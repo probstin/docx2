@@ -4,8 +4,12 @@
   "url": "http://localhost",
   "baseUrl": "/",
   "logo": null,
-  "theme": { "mode": "system", "primaryColor": "#2563eb" },
+  "theme": {
+    "mode": "system",
+    "primaryColor": "#2563eb"
+  },
   "releaseId": "00000000000000-0000000",
+  "apiBasePath": "/api/v1",
   "contentPath": "docs",
   "docsExclude": ["**/_*/**", "**/__tests__/**"],
   "assistant": {

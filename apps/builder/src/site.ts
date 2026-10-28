@@ -27,6 +27,7 @@ import {
 } from "@docs-platform/sources";
 import { z } from "zod";
 import { generateThemeCss } from "./theme.js";
+import { ensureWorkspaceDist } from "./workspace-dist.js";
 
 /** Shape of `platform.generated.json`; the template's `docusaurus.config.ts` mirrors it. */
 export const PlatformConfigSchema = z.object({
@@ -37,6 +38,10 @@ export const PlatformConfigSchema = z.object({
   logo: z.string().nullable(),
   theme: z.object({ mode: z.enum(["light", "dark", "system"]), primaryColor: z.string() }),
   releaseId: z.string(),
+  /** Where the browser reaches the API (an operator setting, not a `docs.yaml` field). */
+  apiBasePath: z
+    .string()
+    .regex(/^\/(?:[\w.~-]+\/)*[\w.~-]+$/, "must be an absolute path without a trailing slash"),
   contentPath: z.string(),
   docsExclude: z.array(z.string()),
   assistant: z.object({
@@ -59,6 +64,8 @@ export interface BuildSiteContent {
   assetFiles: string[];
 }
 
+export const DEFAULT_API_BASE_PATH = "/api/v1";
+
 export interface BuildSiteOptions {
   /** A checked-out repository (see `GitMarkdownSourceAdapter`). */
   checkoutDir: string;
@@ -71,8 +78,21 @@ export interface BuildSiteOptions {
   workDir: string;
   /** Receives the static site. Replaced if it exists. */
   outDir: string;
+  /** Path the browser calls the API under (the chat widget posts to `<apiBasePath>/chat`). Default `/api/v1`. */
+  apiBasePath?: string;
   /** Kill the Docusaurus build after this long. Default 10 minutes. */
   timeoutMs?: number;
+}
+
+/** `buildSite` minus the build: the project is assembled and left in `<workDir>/site`. */
+export type PrepareSiteOptions = Omit<BuildSiteOptions, "outDir" | "timeoutMs"> & { outDir?: string };
+
+export interface PreparedSite {
+  /** `<workDir>/site`, ready for `docusaurus build` or `docusaurus start`. */
+  siteDir: string;
+  templateDir: string;
+  documents: SourceDocument[];
+  platform: PlatformConfig;
 }
 
 export interface BuildSiteResult {
@@ -122,7 +142,7 @@ function templateDir(): string {
 }
 
 /**
- * Assembles the platform-owned Docusaurus project around the team's content and builds it.
+ * Assembles the platform-owned Docusaurus project around the team's content (no build).
  *
  * Layout inside `<workDir>/site` (mirrors the repository so relative image and link paths in the
  * Markdown resolve exactly as authors wrote them, with no rewriting):
@@ -134,22 +154,23 @@ function templateDir(): string {
  * The only Markdown change ever made is forcing `slug: /` on a landing page that would not
  * otherwise be served at `/docs/`.
  */
-export async function buildSite(options: BuildSiteOptions): Promise<BuildSiteResult> {
-  const { checkoutDir, content, releaseId, workDir, outDir } = options;
+export async function prepareSite(options: PrepareSiteOptions): Promise<PreparedSite> {
+  const { checkoutDir, content, releaseId, workDir } = options;
   const { docsYaml } = content;
-  const started = Date.now();
 
   const realCheckout = await realpath(checkoutDir);
   const tplDir = templateDir();
   const siteDir = path.resolve(workDir, "site");
-  const absOut = path.resolve(outDir);
-  await assertSafeOutDir(absOut, [checkoutDir, workDir]);
-  if (isInside(siteDir, absOut) || isInside(absOut, siteDir)) {
-    throw new SiteBuildError("outDir and workDir/site must not overlap");
+  if (options.outDir !== undefined) {
+    const absOut = path.resolve(options.outDir);
+    await assertSafeOutDir(absOut, [checkoutDir, workDir]);
+    if (isInside(siteDir, absOut) || isInside(absOut, siteDir)) {
+      throw new SiteBuildError("outDir and workDir/site must not overlap");
+    }
+    await rm(absOut, { recursive: true, force: true });
   }
 
   await rm(siteDir, { recursive: true, force: true });
-  await rm(absOut, { recursive: true, force: true });
   await mkdir(siteDir, { recursive: true });
 
   // 1. The fixed template, minus dependencies and anything generated.
@@ -207,6 +228,7 @@ export async function buildSite(options: BuildSiteOptions): Promise<BuildSiteRes
     logo,
     theme: { mode: docsYaml.theme.mode, primaryColor: docsYaml.theme.primaryColor },
     releaseId,
+    apiBasePath: options.apiBasePath ?? DEFAULT_API_BASE_PATH,
     contentPath: `repo/${contentRootRel}`,
     docsExclude: [...DOCS_PLUGIN_EXCLUDE, ...docsYaml.content.exclude],
     assistant: docsYaml.assistant,
@@ -217,13 +239,24 @@ export async function buildSite(options: BuildSiteOptions): Promise<BuildSiteRes
     generateThemeCss(docsYaml.theme.primaryColor),
   );
 
+  return { siteDir, templateDir: tplDir, documents: content.documents, platform };
+}
+
+/** Assembles the project (see `prepareSite`) and builds it with Docusaurus, offline. */
+export async function buildSite(options: BuildSiteOptions): Promise<BuildSiteResult> {
+  const started = Date.now();
+  const { siteDir, templateDir: tplDir, documents, platform } = await prepareSite(options);
+  const absOut = path.resolve(options.outDir);
+  // The widget is consumed from the built output of the workspace packages (ADR 0006).
+  await ensureWorkspaceDist(tplDir);
+
   // 5. Build, offline, with the template's own Docusaurus binary.
   const bin = path.join(tplDir, "node_modules", "@docusaurus", "core", "bin", "docusaurus.mjs");
   const { stdout, stderr } = await runDocusaurus(bin, siteDir, absOut, options.timeoutMs ?? 10 * 60_000);
 
   return {
     outDir: absOut,
-    documents: content.documents,
+    documents,
     platform,
     stdout,
     stderr,

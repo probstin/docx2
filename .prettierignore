@@ -1,0 +1,6 @@
+dist
+build
+.docusaurus
+pnpm-lock.yaml
+PLAN.md
+charts/**/templates

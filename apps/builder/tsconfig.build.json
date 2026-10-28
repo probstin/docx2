@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Resolve workspace dependencies to their built output, not their sources.
+    "customConditions": []
+  },
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
+}

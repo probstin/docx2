@@ -10,10 +10,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./styles.css": "./src/styles.css"
+    "./styles.css": "./dist/styles.css"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node -e \"require('node:fs').copyFileSync('src/styles.css','dist/styles.css')\"",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p demo/tsconfig.json --noEmit",
     "dev:demo": "vite demo"
   },
@@ -34,6 +34,13 @@
     "vite": "8.3.5"
   },
   "dependencies": {
-    "@docs-platform/contracts": "workspace:*"
-  }
+    "@docs-platform/contracts": "workspace:*",
+    "prism-react-renderer": "2.4.1",
+    "react-markdown": "10.1.0",
+    "remark-gfm": "4.0.1",
+    "zod": "4.6.7"
+  },
+  "files": [
+    "dist"
+  ]
 }

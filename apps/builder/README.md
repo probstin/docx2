@@ -48,6 +48,18 @@ pnpm --filter @docs-platform/builder site \
 `pnpm --filter @docs-platform/builder site --help` for all options. Git credentials come from
 `SOURCE_GIT_USERNAME` / `SOURCE_GIT_TOKEN` and are never written to argv, URLs or logs.
 
+## Run the site in dev against a local API
+
+```bash
+pnpm dev:site [path-to-docs-dir]   # default: examples/sample-docs; serves http://localhost:3000
+```
+
+This calls `prepareSite()` (assemble only, no build) into `.data/dev-site` and runs `docusaurus start`. `/api` is
+proxied to `http://localhost:8080` (override with `DOCS_PLATFORM_API_URL`). The release id is `dev-preview`
+(override with `DEV_RELEASE_ID`; the API rejects unknown ids, so use a real indexed release to get answers).
+The template consumes `contracts` and `chat-react` from `dist/`, which the builder builds when stale (ADR 0006).
+`buildSite({ apiBasePath })` sets the browser-side API path (default `/api/v1`).
+
 ## Preview the output
 
 ```bash
@@ -64,3 +76,25 @@ Open <http://localhost:3000/> (redirects to `/docs/`).
 
 `pnpm test` includes `src/site.integration.test.ts`, which runs real Docusaurus builds (about a minute in
 total). Set `SKIP_SLOW_TESTS=1` to skip it.
+
+## Dev: index and activate a release locally
+
+`builder index` runs the indexing half of the pipeline against your local Postgres so the whole vertical
+slice (site, index, chat) works before the Kubernetes Job exists. Give `site` and `index` the **same**
+`--release-id`, so the release baked into the HTML matches the indexed one:
+
+```bash
+set -a; . ./.env.example; set +a        # PG* and model env (defaults point at tools/mock-openai)
+pnpm --filter @docs-platform/mock-openai start &        # deterministic local models on :4010
+RID=20260101000000-0123456789ab
+
+pnpm --filter @docs-platform/builder site  --source "$PWD/examples/sample-docs" \
+  --out "$PWD/.data/sample-site" --release-id "$RID"
+pnpm --filter @docs-platform/builder index --source "$PWD/examples/sample-docs" \
+  --release-id "$RID" --activate
+```
+
+`index` runs migrations, reads the checkout, creates a `CANDIDATE` release (recording the embedding model
+and dimensions from `EMBEDDINGS_*`), embeds and stores all chunks, writes a minimal manifest, marks the
+release `READY` and, with `--activate`, `ACTIVE`. It prints the release id. Any failure marks the release
+`FAILED`. The release id must be new; reuse fails on the primary key.

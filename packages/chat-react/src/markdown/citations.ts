@@ -1,0 +1,78 @@
+import type { Citation } from "@docs-platform/contracts";
+
+/** The mdast fields this plugin touches. Declared locally to avoid a direct dependency on @types/mdast. */
+interface MdNode {
+  type: string;
+  value?: string;
+  url?: string;
+  children?: MdNode[];
+  data?: { hProperties?: Record<string, string>; [key: string]: unknown };
+}
+
+/** Same grammar as the server's `buildCitations`: `[1]`, `[1, 2]`, `[1,2]`; `[1][2]` is two matches. */
+const CITATION_PATTERN = /\[(\d+(?:\s*,\s*\d+)*)\]/g;
+
+/** Node types whose text must be left alone: a `[1]` inside a link or code is not a citation marker. */
+const OPAQUE_TYPES = new Set(["link", "linkReference", "inlineCode", "code", "definition"]);
+
+/**
+ * Remark plugin: turns `[n]` text into a link to citation `n`'s url, but only when a citation
+ * with that index exists. Other bracketed numbers stay as plain text.
+ */
+export function remarkCitationLinks(citations: readonly Citation[] | undefined) {
+  const urlByIndex = new Map<number, string>(
+    (citations ?? []).map((citation) => [citation.index, citation.url]),
+  );
+
+  return () => (tree: MdNode) => {
+    if (urlByIndex.size > 0) linkifyChildren(tree, urlByIndex);
+  };
+}
+
+function linkifyChildren(node: MdNode, urlByIndex: Map<number, string>) {
+  if (!node.children) return;
+  const next: MdNode[] = [];
+  for (const child of node.children) {
+    if (child.type === "text" && typeof child.value === "string") {
+      next.push(...splitText(child.value, urlByIndex));
+    } else {
+      if (!OPAQUE_TYPES.has(child.type)) linkifyChildren(child, urlByIndex);
+      next.push(child);
+    }
+  }
+  node.children = next;
+}
+
+function splitText(value: string, urlByIndex: Map<number, string>): MdNode[] {
+  const parts: MdNode[] = [];
+  let cursor = 0;
+  const pushText = (text: string) => {
+    const last = parts[parts.length - 1];
+    if (last?.type === "text") last.value += text;
+    else parts.push({ type: "text", value: text });
+  };
+  for (const match of value.matchAll(CITATION_PATTERN)) {
+    const indexes = (match[1] as string).split(",").map(Number);
+    if (!indexes.some((index) => urlByIndex.has(index))) continue;
+    const start = match.index ?? 0;
+    if (start > cursor) pushText(value.slice(cursor, start));
+    // Each number becomes its own marker; numbers without a citation stay as text.
+    for (const index of indexes) {
+      const url = urlByIndex.get(index);
+      if (url === undefined) {
+        pushText(`[${index}]`);
+        continue;
+      }
+      parts.push({
+        type: "link",
+        url,
+        children: [{ type: "text", value: `[${index}]` }],
+        data: { hProperties: { className: "dp-chat-cite", title: `Source ${index}` } },
+      });
+    }
+    cursor = start + match[0].length;
+  }
+  if (parts.length === 0) return [{ type: "text", value }];
+  if (cursor < value.length) pushText(value.slice(cursor));
+  return parts;
+}

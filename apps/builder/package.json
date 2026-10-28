@@ -9,13 +9,16 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "dev": "tsx watch --conditions=development src/main.ts",
     "start": "node dist/main.js",
-    "site": "tsx --conditions=development src/main.ts site"
+    "site": "tsx --conditions=development src/main.ts site",
+    "index": "tsx --conditions=development src/main.ts index"
   },
   "main": "./dist/main.js",
   "dependencies": {
     "@docs-platform/contracts": "workspace:*",
     "@docs-platform/docusaurus-template": "workspace:*",
+    "@docs-platform/rag": "workspace:*",
     "@docs-platform/sources": "workspace:*",
+    "@docs-platform/storage": "workspace:*",
     "zod": "4.6.7"
   },
   "devDependencies": {

@@ -3,13 +3,15 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import { createReleaseId } from "@docs-platform/contracts";
+import { ReleaseIdSchema, createReleaseId } from "@docs-platform/contracts";
 import { GitMarkdownSourceAdapter, readCheckout, type CheckoutContent } from "@docs-platform/sources";
+import { runIndex } from "./index-cli.js";
 import { collectManifestSite } from "./manifest-site.js";
 import { buildSite } from "./site.js";
 
 const USAGE = `Usage:
   builder site --source <dir-or-git-url> --out <dir> [options]
+  builder index --source <dir> --release-id <id> [--activate]   (see "builder index --help")
 
 Builds the static documentation site for a docs repository (offline).
 
@@ -19,6 +21,7 @@ Options:
   --sha <sha>         Full commit SHA to build. For Git sources it defaults to the head of
                       --branch. For plain directories it is only used to name the release.
   --branch <name>     Branch for Git sources (default: main).
+  --release-id <id>   Release id to bake into the site (default: derived from the SHA and now).
   --out <dir>         Output directory for the static site (replaced if present).
   --public-url <url>  Origin the site will be served from (default: http://localhost:3000).
   --work-dir <dir>    Scratch directory (default: a fresh temp directory, removed afterwards).
@@ -37,6 +40,7 @@ async function runSite(argv: string[]): Promise<void> {
     options: {
       source: { type: "string" },
       sha: { type: "string" },
+      "release-id": { type: "string" },
       branch: { type: "string", default: "main" },
       out: { type: "string" },
       "public-url": { type: "string", default: "http://localhost:3000" },
@@ -98,7 +102,9 @@ async function runSite(argv: string[]): Promise<void> {
     }
 
     const { docsYaml } = content;
-    const releaseId = createReleaseId(revision);
+    const releaseId = values["release-id"]
+      ? ReleaseIdSchema.parse(values["release-id"])
+      : createReleaseId(revision);
     console.log(`Building "${docsYaml.site.title}" as release ${releaseId} (this takes a minute)...`);
     const built = await buildSite({
       checkoutDir,
@@ -128,6 +134,8 @@ async function main(): Promise<void> {
   const [command, ...rest] = process.argv.slice(2);
   if (command === "site") {
     await runSite(rest);
+  } else if (command === "index") {
+    await runIndex(rest);
   } else {
     console.log(USAGE);
     process.exitCode = command === undefined || command === "--help" ? 0 : 2;

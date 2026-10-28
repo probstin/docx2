@@ -40,6 +40,7 @@ async function fixture(name: string, mutate: (dir: string) => Promise<void>): Pr
 async function build(
   name: string,
   checkoutDir: string,
+  apiBasePath?: string,
 ): Promise<BuildSiteResult & { site: Awaited<ReturnType<typeof collectManifestSite>> }> {
   const content = await readCheckout(checkoutDir);
   const built = await buildSite({
@@ -49,6 +50,7 @@ async function build(
     publicUrl: "https://docs.example.com",
     workDir: path.join(tmp, `${name}-work`),
     outDir: path.join(tmp, `${name}-out`),
+    ...(apiBasePath ? { apiBasePath } : {}),
   });
   const site = await collectManifestSite(built.outDir, built.documents, {
     title: content.docsYaml.site.title,
@@ -261,6 +263,32 @@ describeSlow("integration: sample-docs site build (slow)", () => {
     ).toEqual([]);
     expect(html).not.toMatch(/googleapis|gstatic|algolia/);
   });
+
+  it("bundles the chat widget with the default API base path, under hashed assets/", async () => {
+    expect(result.platform.apiBasePath).toBe("/api/v1");
+    const generated = JSON.parse(
+      await readFile(path.join(tmp, "sample-work", "site", "platform.generated.json"), "utf8"),
+    ) as { apiBasePath: string };
+    expect(generated.apiBasePath).toBe("/api/v1");
+
+    const jsFiles = (await allFiles(path.join(result.outDir, "assets", "js"))).filter((f) =>
+      /\.[0-9a-f]{8,}\.js$/.test(f),
+    );
+    expect(jsFiles.length).toBeGreaterThan(0);
+    const bundles = await Promise.all(jsFiles.map((f) => readFile(f, "utf8")));
+    const all = bundles.join("\n");
+    expect(all).toContain("dp-chat-launcher");
+    expect(all).toContain("/api/v1");
+    expect(all).toContain("docs-platform:");
+    const css = (await allFiles(path.join(result.outDir, "assets", "css")))
+      .filter((f) => f.endsWith(".css"))
+      .map((f) => readFile(f, "utf8"));
+    expect((await Promise.all(css)).join("\n")).toContain(".dp-chat-launcher");
+    // Hashed names everywhere (ADR 0002), and the widget is client-only: no launcher in static HTML.
+    expect(result.site.hashedAssets.every((a) => /\.[0-9a-f]{8,}\./.test(a))).toBe(true);
+    const html = await readFile(path.join(result.outDir, "docs", "index.html"), "utf8");
+    expect(html).not.toContain("dp-chat-launcher");
+  });
 });
 
 describeSlow("integration: routing with basePath and a non-index landing page (slow)", () => {
@@ -297,7 +325,15 @@ describeSlow("integration: routing with basePath and a non-index landing page (s
         await rm(path.join(dir, "docs", "guides"), { recursive: true });
         await rm(path.join(dir, "docs", "reference"), { recursive: true });
       });
-      const built = await build("routing", checkout);
+      const built = await build("routing", checkout, "/gateway/api");
+      expect(built.platform.apiBasePath).toBe("/gateway/api");
+      const routingJs = await readFile(
+        (await allFiles(path.join(built.outDir, "assets", "js"))).find((f) =>
+          /main\.[0-9a-f]+\.js$/.test(f),
+        ) as string,
+        "utf8",
+      );
+      expect(routingJs).toContain("/gateway/api");
       const routes = built.site.pages.map((p) => p.route);
       expect(routes).toEqual([
         "/team-a/docs/",

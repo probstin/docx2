@@ -26,9 +26,10 @@ import { createRequireAdmin, requireIdentity } from "./auth.js";
 import type { ApiConfig } from "./config.js";
 import { HttpError, errorBody } from "./errors.js";
 import { createMetrics } from "./metrics.js";
-import type { ReadinessCheck, SiteService } from "./ports.js";
+import type { ChatService, ReadinessCheck, ReleaseService, SiteService } from "./ports.js";
 import { buildsRoutes } from "./routes/builds.js";
 import type { RouteDeps } from "./routes/deps.js";
+import { chatRoutes } from "./routes/chat.js";
 import { healthRoutes } from "./routes/health.js";
 import { metricsRoutes } from "./routes/metrics.js";
 import { siteRoutes } from "./routes/site.js";
@@ -37,6 +38,11 @@ export interface AppOptions {
   config: ApiConfig;
   /** Injected ports. */
   site: SiteService;
+  /** The chat route is registered only when both `chat` and `releases` are provided. */
+  chat?: ChatService;
+  releases?: ReleaseService;
+  /** SSE keep-alive interval in ms (default 15s). */
+  keepAliveMs?: number;
   readiness?: readonly ReadinessCheck[];
   /** Run after the HTTP server has closed (close pools, queues, ...). */
   onClose?: ReadonlyArray<() => Promise<void>>;
@@ -155,6 +161,11 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   // ---- routes --------------------------------------------------------------------------
   const deps: RouteDeps = {
     site: options.site,
+    ...(options.chat ? { chat: options.chat } : {}),
+    ...(options.releases ? { releases: options.releases } : {}),
+    chatLimits: config.chat,
+    publicUrl: config.server.PLATFORM_PUBLIC_URL,
+    keepAliveMs: options.keepAliveMs ?? 15_000,
     readiness: options.readiness ?? [],
     readinessTimeoutMs: options.readinessTimeoutMs ?? 2000,
     metrics,
@@ -164,6 +175,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   await app.register(metricsRoutes, deps);
   await app.register(siteRoutes, deps);
   await app.register(buildsRoutes, deps);
+  if (deps.chat && deps.releases) await app.register(chatRoutes, deps);
 
   for (const hook of options.onClose ?? []) {
     app.addHook("onClose", async () => hook());

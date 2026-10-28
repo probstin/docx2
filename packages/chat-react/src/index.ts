@@ -9,3 +9,7 @@ export { Composer, type ComposerProps, MESSAGE_MAX_CHARS } from "./Composer.js";
 export { EmptyState, type EmptyStateProps } from "./EmptyState.js";
 export { PageContextChip, type PageContextChipProps } from "./PageContextChip.js";
 export type { ChatMode, PageContextInfo, UiMessage, UiMessageStatus } from "./types.js";
+export { ChatWidget, type ChatWidgetProps } from "./ChatWidget.js";
+export { useChat, buildHistory, type UseChatOptions, type UseChatResult } from "./useChat.js";
+export { useChatMode } from "./useChatMode.js";
+export { streamChat, ChatApiError, isAbortError, type StreamChatOptions } from "./api-client.js";

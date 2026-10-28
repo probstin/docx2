@@ -14,5 +14,19 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@docs-platform/contracts": "workspace:*",
+    "@docs-platform/sources": "workspace:*",
+    "@docs-platform/storage": "workspace:*",
+    "@langchain/core": "1.3.1",
+    "@langchain/openai": "1.8.0",
+    "@langchain/textsplitters": "1.0.2",
+    "pg": "8.23.1",
+    "yaml": "2.9.1"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1",
+    "@docs-platform/mock-openai": "workspace:*"
   }
 }

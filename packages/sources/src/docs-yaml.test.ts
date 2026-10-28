@@ -90,7 +90,7 @@ describe("resolveContentPath", () => {
     await expect(resolveContentPath(dir, "missing.md")).rejects.toThrow(/does not exist/);
   });
 
-  it("rejects symlinks resolving outside the checkout but allows ones inside", async () => {
+  it("rejects symlinks, whether they escape the checkout or not", async () => {
     const outside = await mkdtemp(path.join(tmpdir(), "sources-outside-"));
     try {
       await writeFile(path.join(outside, "secret.txt"), "s");
@@ -100,7 +100,8 @@ describe("resolveContentPath", () => {
       await symlink("real.md", path.join(dir, "inside.md"));
       await expect(resolveContentPath(dir, "link.md")).rejects.toThrow(/symlink escape/);
       await expect(resolveContentPath(dir, "linkdir/secret.txt")).rejects.toThrow(/symlink escape/);
-      await expect(resolveContentPath(dir, "inside.md")).resolves.toMatch(/real\.md$/);
+      await expect(resolveContentPath(dir, "inside.md")).rejects.toThrow(/goes through a symlink/);
+      await expect(resolveContentPath(dir, "real.md")).resolves.toMatch(/real\.md$/);
     } finally {
       await rm(outside, { recursive: true, force: true });
     }

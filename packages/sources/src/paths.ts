@@ -52,5 +52,11 @@ export async function resolveContentPath(checkoutDir: string, relPath: string): 
       `Path ${JSON.stringify(relPath)} resolves outside the checkout (symlink escape)`,
     );
   }
+  // Fail closed on any symlink in the path, even one that stays inside the checkout.
+  if (real !== path.join(realRoot, normalized)) {
+    throw new ContentPathError(
+      `Path ${JSON.stringify(relPath)} goes through a symlink, which is not allowed`,
+    );
+  }
   return real;
 }

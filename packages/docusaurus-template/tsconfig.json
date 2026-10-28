@@ -1,0 +1,10 @@
+{
+  "extends": "@docusaurus/tsconfig",
+  "compilerOptions": {
+    "ignoreDeprecations": "6.0",
+    "strict": true,
+    "types": ["node", "@docusaurus/module-type-aliases"]
+  },
+  "include": ["docusaurus.config.ts", "sidebars.ts", "plugins", "src"],
+  "exclude": [".docusaurus", "build", "node_modules"]
+}

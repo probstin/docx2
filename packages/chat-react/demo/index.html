@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chat UI demo</title>
+    <style>
+      /* Stand-in for Docusaurus Infima variables so theming inheritance can be checked. */
+      :root {
+        --ifm-color-primary: #2563eb;
+        --ifm-background-color: #ffffff;
+        --ifm-background-surface-color: #f3f4f6;
+        --ifm-font-color-base: #1f2328;
+        --ifm-font-family-base: system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      [data-theme="dark"] {
+        --ifm-color-primary: #60a5fa;
+        --ifm-background-color: #1b1b1d;
+        --ifm-background-surface-color: #242526;
+        --ifm-font-color-base: #e3e3e3;
+      }
+      body {
+        margin: 0;
+        background: var(--ifm-background-color);
+        color: var(--ifm-font-color-base);
+        font-family: var(--ifm-font-family-base);
+      }
+      .demo-page {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 32px 20px;
+      }
+      .demo-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin: 16px 0;
+        font-size: 14px;
+      }
+      .demo-toolbar label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./main.tsx"></script>
+  </body>
+</html>

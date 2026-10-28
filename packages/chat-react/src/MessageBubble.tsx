@@ -1,5 +1,6 @@
 import { CitationList } from "./CitationList.js";
 import { MessageContent } from "./MessageContent.js";
+import { CopyButton } from "./markdown/CopyButton.js";
 import type { UiMessage } from "./types.js";
 
 export interface MessageBubbleProps {
@@ -34,10 +35,16 @@ export function MessageBubble({ message, onRetry }: MessageBubbleProps) {
         <TypingIndicator />
       ) : (
         <>
-          <MessageContent text={content} />
+          <MessageContent text={content} citations={citations} plain={role === "user"} />
           {isStreaming ? <span className="dp-chat-caret" aria-hidden="true" /> : null}
         </>
       )}
+
+      {role === "assistant" && status === "complete" && content.length > 0 ? (
+        <div className="dp-chat-message-actions">
+          <CopyButton text={content} label="Copy answer" className="dp-chat-copy-answer" />
+        </div>
+      ) : null}
 
       {answerStatus === "insufficient_context" ? (
         <p className="dp-chat-notice">Not found in the documentation</p>

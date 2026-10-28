@@ -1,19 +1,34 @@
+import { createPool, migrate } from "@docs-platform/storage";
 import { buildApp } from "./app.js";
-import { loadConfig } from "./config.js";
-import { upstreamUnavailable } from "./errors.js";
-import type { SiteService } from "./ports.js";
+import { loadRuntimeConfig } from "./config.js";
+import { placeholderChatService, provideChatService } from "./services/chat.js";
+import { databaseReadiness } from "./services/readiness.js";
+import { createReleaseService } from "./services/releases.js";
+import { createSiteService } from "./services/site.js";
 
-/**
- * Composition root. Real implementations of the ports (storage, RAG, build) are wired in
- * here by later work; until then the site service reports itself unavailable.
- */
-const unwiredSite: SiteService = {
-  getSiteInfo: () => Promise.reject(upstreamUnavailable("Site service not configured")),
-};
-
+/** Composition root: config -> pool -> services -> app. */
 async function main(): Promise<void> {
-  const config = loadConfig();
-  const app = await buildApp({ config, site: unwiredSite, readiness: [], onClose: [] });
+  const config = loadRuntimeConfig();
+  const pool = createPool();
+  try {
+    // Production runs migrations from the Helm migration Job; this is for local development.
+    if (config.db.DB_MIGRATE_ON_START) await migrate(pool);
+  } catch (err) {
+    await pool.end();
+    throw err;
+  }
+
+  // WIRING POINT: swap `placeholderChatService` for the `@docs-platform/rag` implementation.
+  const chat = provideChatService(placeholderChatService);
+
+  const app = await buildApp({
+    config,
+    site: createSiteService(pool),
+    releases: createReleaseService(pool),
+    chat,
+    readiness: [databaseReadiness(pool)],
+    onClose: [() => pool.end()],
+  });
 
   let closing = false;
   const shutdown = (signal: string) => {

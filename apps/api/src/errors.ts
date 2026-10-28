@@ -25,6 +25,9 @@ export const payloadTooLarge = (message = "Payload too large") =>
 export const rateLimited = (message = "Too many requests") => new HttpError(429, "RATE_LIMITED", message);
 export const upstreamUnavailable = (message = "Upstream unavailable") =>
   new HttpError(503, "UPSTREAM_UNAVAILABLE", message);
+export const releaseUnknown = (
+  message = "The documentation was updated. Reload the page to continue chatting.",
+) => new HttpError(404, "RELEASE_UNKNOWN", message);
 export const notImplemented = () => new HttpError(501, "INTERNAL", "not implemented");
 
 /** Details contain paths and messages only, never the rejected input values. */

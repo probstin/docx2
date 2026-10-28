@@ -4,5 +4,5 @@
     // Resolve workspace dependencies to their built output, not their sources.
     "customConditions": []
   },
-  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
+  "exclude": ["src/testing.ts", "src/**/*.test.ts", "src/**/*.test.tsx"]
 }

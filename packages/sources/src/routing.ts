@@ -63,7 +63,8 @@ export function computeDocRoute(input: RouteInput): DocRoute {
   } else if (!fmSlug && isCategoryIndex) {
     slug = dirSlug;
   } else {
-    slug = new URL(fmSlug ?? baseId, `http://docs.invalid${dirSlug}`).pathname;
+    // Resolve `.`/`..` like a URL would, but keep raw characters: Docusaurus does not percent-encode.
+    slug = path.posix.normalize(`${dirSlug}${fmSlug ?? baseId}`);
   }
 
   const url = `${basePath}${ROUTE_BASE_PATH}${slug}`.replace(/\/{2,}/g, "/");

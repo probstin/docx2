@@ -270,17 +270,21 @@ export async function activateRelease(
 }
 
 /**
- * Oldest INACTIVE releases beyond the newest `retain` non-pruned releases. Never the ACTIVE
- * release, never anything referenced by an open (non-terminal) build.
+ * Releases safe to prune: INACTIVE ones beyond the newest `retain` servable or rollback-able
+ * releases (ACTIVE, INACTIVE, READY; CANDIDATE and FAILED never use up the window), plus every
+ * FAILED release so its partial artifacts are cleaned up. Never the ACTIVE release, never a
+ * CANDIDATE, never anything referenced by an open (non-terminal) build.
  */
 export async function listPrunableReleases(db: Queryable, retain: number): Promise<ReleaseRecord[]> {
   const keep = Math.max(Math.trunc(retain), 0);
   const { rows } = await db.query<ReleaseRow>(
     `SELECT ${RELEASE_COLUMNS} FROM (
-       SELECT r.*, row_number() OVER (ORDER BY created_at DESC, id DESC) AS rn
+       SELECT r.*, CASE WHEN status IN ('ACTIVE','INACTIVE','READY')
+         THEN row_number() OVER (PARTITION BY status IN ('ACTIVE','INACTIVE','READY') ORDER BY created_at DESC, id DESC)
+       END AS rn
        FROM releases r WHERE status <> 'PRUNED'
      ) ranked
-     WHERE rn > $1 AND status = 'INACTIVE'
+     WHERE ((status = 'INACTIVE' AND rn > $1) OR status = 'FAILED')
        AND NOT EXISTS (
          SELECT 1 FROM builds b WHERE b.release_id = ranked.id
            AND b.status NOT IN ('PUBLISHED','FAILED','SUPERSEDED'))

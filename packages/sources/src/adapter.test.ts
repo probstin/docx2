@@ -147,17 +147,27 @@ describe("GitMarkdownSourceAdapter", () => {
     const issues = (error as SourceValidationError).issues;
     expect(issues.map((i) => i.path).sort()).toEqual(["docs/dirlink", "docs/leak.md", "docs/page.mdx"]);
     expect(issues.find((i) => i.path === "docs/page.mdx")?.message).toMatch(/MDX is not supported/);
-    expect(issues.find((i) => i.path === "docs/leak.md")?.message).toMatch(/outside the checkout/);
+    expect(issues.find((i) => i.path === "docs/leak.md")?.message).toMatch(/symlinks are not allowed/);
   });
 
-  it("allows symlinks that stay inside the checkout", async () => {
+  it("rejects symlinks even when they stay inside the checkout, or sit in excluded paths", async () => {
     await seed();
     await symlink("../index.md", path.join(repo, "docs", "guides", "alias.md"));
+    await mkdir(path.join(repo, "docs", "_hidden"), { recursive: true });
+    await symlink("../index.md", path.join(repo, "docs", "_hidden", "x.md"));
+    await symlink("../index.md", path.join(repo, "docs", "img", "pic-link.png"));
     git(repo, "add", "-A");
     git(repo, "commit", "--quiet", "-m", "alias");
     const sha = git(repo, "rev-parse", "HEAD");
-    const snap = await new GitMarkdownSourceAdapter({ workDir: work }).fetch(ref(sha));
-    expect((await collect(snap.documents)).map((d) => d.path)).toContain("docs/guides/alias.md");
+    const error = await new GitMarkdownSourceAdapter({ workDir: work })
+      .fetch(ref(sha))
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(SourceValidationError);
+    expect((error as SourceValidationError).issues.map((i) => i.path).sort()).toEqual([
+      "docs/_hidden/x.md",
+      "docs/guides/alias.md",
+      "docs/img/pic-link.png",
+    ]);
   });
 
   it("ignores .mdx files that are excluded", async () => {

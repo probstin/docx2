@@ -6,7 +6,7 @@ import picomatch from "picomatch";
 import { loadDocsYaml } from "./docs-yaml.js";
 import { SourceError, SourceValidationError, type SourceIssue } from "./errors.js";
 import { extractHeadings, parseFrontmatter } from "./markdown.js";
-import { isInside, normalizeRepoPath, resolveContentPath } from "./paths.js";
+import { normalizeRepoPath, resolveContentPath } from "./paths.js";
 import { DOCS_PLUGIN_EXCLUDE, computeDocRoute } from "./routing.js";
 
 const MAX_MARKDOWN_BYTES = 5 * 1024 * 1024;
@@ -141,30 +141,15 @@ async function walk(ctx: {
       continue;
     }
 
+    // Symlinks are never allowed (even in excluded paths): repository content is data.
+    if (entry.isSymbolicLink()) {
+      ctx.issues.push({ path: repoPath, message: "symlinks are not allowed" });
+      continue;
+    }
+
     if (ctx.isExcluded(relInRoot)) continue;
 
-    if (entry.isSymbolicLink()) {
-      let target: string;
-      try {
-        target = await realpath(abs);
-      } catch {
-        ctx.issues.push({ path: repoPath, message: "broken symlink" });
-        continue;
-      }
-      if (!isInside(ctx.realCheckout, target)) {
-        ctx.issues.push({ path: repoPath, message: "symlink resolves outside the checkout" });
-        continue;
-      }
-      const info = await stat(target);
-      if (info.isDirectory()) {
-        ctx.issues.push({ path: repoPath, message: "directory symlinks are not supported" });
-        continue;
-      }
-      if (!info.isFile()) {
-        ctx.issues.push({ path: repoPath, message: "symlink does not point to a regular file" });
-        continue;
-      }
-    } else if (!entry.isFile()) {
+    if (!entry.isFile()) {
       ctx.issues.push({ path: repoPath, message: "not a regular file" });
       continue;
     }
@@ -178,7 +163,7 @@ async function walk(ctx: {
       continue;
     }
 
-    const info = await lstat(abs).then(async (l) => (l.isSymbolicLink() ? await stat(abs) : l));
+    const info = await lstat(abs);
     if (entry.name.endsWith(".md")) {
       if (info.size > MAX_MARKDOWN_BYTES) {
         ctx.issues.push({

@@ -21,6 +21,7 @@ import {
   searchChunks,
   supersedeQueuedOlderThan,
   transitionBuild,
+  StorageError,
   withTransaction,
 } from "./index.js";
 import { migrate } from "./migrate.js";
@@ -111,6 +112,47 @@ describe.skipIf(!hasPg)("storage repositories", () => {
         ok: false,
         reason: "not_found",
       });
+    });
+
+    it("transitionBuild reports duplicate_open instead of throwing, and keeps the caller's transaction usable", async () => {
+      const s = sha(1500);
+      const a = await createBuild(pool(), { trigger: "webhook", gitSha: s });
+      const b = await createBuild(pool(), { trigger: "manual" });
+      if (!a.ok || !b.ok) throw new Error();
+      // Pool form.
+      expect(await transitionBuild(pool(), b.build.id, "QUEUED", "CHECKOUT", { gitSha: s })).toEqual({
+        ok: false,
+        reason: "duplicate_open",
+      });
+      expect((await getBuildDetail(pool(), b.build.id))?.status).toBe("QUEUED");
+      // Client form: the surrounding transaction must survive.
+      await withTransaction(pool(), async (tx) => {
+        expect(await transitionBuild(tx, b.build.id, "QUEUED", "CHECKOUT", { gitSha: s })).toMatchObject({
+          ok: false,
+          reason: "duplicate_open",
+        });
+        const ok = await transitionBuild(tx, b.build.id, "QUEUED", "CHECKOUT", { gitSha: sha(1501) });
+        expect(ok).toMatchObject({ ok: true });
+        expect(await getBuildDetail(tx, b.build.id)).toMatchObject({ status: "CHECKOUT", gitSha: sha(1501) });
+      });
+    });
+
+    it("rejects malformed and unknown ids/cursors without leaking raw pg errors", async () => {
+      expect(await getBuildDetail(pool(), "not-a-uuid")).toBeNull();
+      expect(await getBuildDetail(pool(), "00000000-0000-0000-0000-000000000000")).toBeNull();
+      expect(await transitionBuild(pool(), "not-a-uuid", "QUEUED", "CHECKOUT")).toMatchObject({
+        ok: false,
+        reason: "not_found",
+      });
+      const bad = await listBuilds(pool(), { limit: 5, cursor: "not-a-uuid" }).catch((e: unknown) => e);
+      expect(bad).toBeInstanceOf(StorageError);
+      expect((bad as StorageError).code).toBe("INVALID_CURSOR");
+      const unknown = await listBuilds(pool(), {
+        limit: 5,
+        cursor: "00000000-0000-0000-0000-000000000000",
+      }).catch((e: unknown) => e);
+      expect(unknown).toBeInstanceOf(StorageError);
+      expect((unknown as StorageError).code).toBe("INVALID_CURSOR");
     });
 
     it("hasPublishedBuildForSha and listBuilds pagination", async () => {
@@ -340,6 +382,31 @@ describe.skipIf(!hasPg)("storage repositories", () => {
         reason: "invalid_transition",
       });
       expect(await isChatQueryable(pool(), ids[0]!)).toBe(false);
+    });
+
+    it("failed and candidate releases do not use up the retention window; failed ones are prunable", async () => {
+      await pool().query("DELETE FROM builds");
+      await pool().query("UPDATE releases SET status = 'PRUNED' WHERE status <> 'PRUNED'");
+      const good: string[] = [];
+      for (let i = 0; i < 3; i++) good.push(await newRelease(3));
+      for (const id of good) await activateRelease(pool(), id); // good[0], good[1] INACTIVE; good[2] ACTIVE
+      const failed: string[] = [];
+      for (let i = 0; i < 3; i++) {
+        const id = await newRelease(3, false);
+        expect((await failRelease(pool(), id, "boom")).ok).toBe(true);
+        failed.push(id);
+      }
+      const candidate = await newRelease(3, false);
+
+      const prunable = (await listPrunableReleases(pool(), 3)).map((r) => r.id);
+      expect(prunable).toEqual(failed);
+      expect(prunable).not.toContain(candidate);
+      for (const id of good) expect(prunable).not.toContain(id);
+      // A smaller window still only ranks servable releases.
+      expect((await listPrunableReleases(pool(), 1)).map((r) => r.id)).toEqual([good[0], good[1], ...failed]);
+
+      expect((await markReleasePruned(pool(), failed[0]!)).ok).toBe(true);
+      expect((await listPrunableReleases(pool(), 3)).map((r) => r.id)).toEqual(failed.slice(1));
     });
   });
 });

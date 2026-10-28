@@ -32,9 +32,15 @@ interface MdFile {
 
 const SAFE_SCHEMES = new Set(["http", "https", "mailto", "tel"]);
 
-function isOnlyComment(html: string): boolean {
-  const value = html.trim();
-  return value.startsWith("<!--") && value.endsWith("-->") && value.indexOf("-->") === value.length - 3;
+/**
+ * True only for HTML made of one or more well-formed comments and whitespace. Strict on purpose:
+ * browsers also end a comment at `--!>`, and treat `<!-->` / `<!--->` as empty comments, so bodies
+ * may not contain `--` (which also rules out `--!>`) or start with `>` or `->`. Fails closed.
+ */
+const COMMENTS_ONLY = /^\s*(?:<!--(?!>|->)(?:(?!--)[\s\S])*-->\s*)+$/;
+
+export function isOnlyComment(html: string): boolean {
+  return COMMENTS_ONLY.test(html);
 }
 
 export default function restrictMarkdown() {

@@ -6,7 +6,7 @@ import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadDocsYaml, SourceValidationError } from "@docs-platform/sources";
+import { readCheckout, SourceValidationError } from "@docs-platform/sources";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   SiteVerificationError,
@@ -41,18 +41,18 @@ async function build(
   name: string,
   checkoutDir: string,
 ): Promise<BuildSiteResult & { site: Awaited<ReturnType<typeof collectManifestSite>> }> {
-  const docsYaml = await loadDocsYaml(checkoutDir);
+  const content = await readCheckout(checkoutDir);
   const built = await buildSite({
     checkoutDir,
-    docsYaml,
+    content,
     releaseId: RELEASE_ID,
     publicUrl: "https://docs.example.com",
     workDir: path.join(tmp, `${name}-work`),
     outDir: path.join(tmp, `${name}-out`),
   });
   const site = await collectManifestSite(built.outDir, built.documents, {
-    title: docsYaml.site.title,
-    basePath: docsYaml.site.basePath,
+    title: content.docsYaml.site.title,
+    basePath: content.docsYaml.site.basePath,
   });
   return { ...built, site };
 }
@@ -355,10 +355,9 @@ describeSlow("integration: content the platform must refuse (slow)", () => {
     "fails verification if the built HTML lacks a source anchor",
     async () => {
       const checkout = await fixture("verify", async () => {});
-      const docsYaml = await loadDocsYaml(checkout);
       const built = await buildSite({
         checkoutDir: checkout,
-        docsYaml,
+        content: await readCheckout(checkout),
         releaseId: RELEASE_ID,
         publicUrl: "https://docs.example.com",
         workDir: path.join(tmp, "verify-work"),

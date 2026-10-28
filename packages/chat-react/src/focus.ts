@@ -41,8 +41,12 @@ export function trapTabKey(
 
 /** Allows site-relative paths, fragments, and absolute http(s) URLs only. */
 export function isSafeHref(url: string): boolean {
-  if (url.startsWith("//")) return false;
-  if (url.startsWith("/") || url.startsWith("#")) return true;
+  // Backslashes and control characters are normalised or stripped by browsers (`/\evil.example`
+  // becomes `//evil.example`), so none are allowed anywhere.
+  // eslint-disable-next-line no-control-regex -- matching control characters is the point
+  if (/[\\\u0000-\u001f\u007f]/.test(url)) return false;
+  if (url === "/" || url.startsWith("#")) return true;
+  if (url.startsWith("/")) return url[1] !== "/";
   try {
     const parsed = new URL(url);
     return parsed.protocol === "http:" || parsed.protocol === "https:";

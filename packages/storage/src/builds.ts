@@ -6,7 +6,14 @@ import {
   type BuildSummary,
   type BuildTrigger,
 } from "@docs-platform/contracts";
-import { inTransaction, type GuardedResult, type Pool, type Queryable } from "./db.js";
+import {
+  StorageError,
+  inTransaction,
+  isPgError,
+  type GuardedResult,
+  type Pool,
+  type Queryable,
+} from "./db.js";
 
 interface BuildRow {
   id: string;
@@ -19,6 +26,8 @@ interface BuildRow {
   created_at: Date;
   updated_at: Date;
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const BUILD_COLUMNS = "id, git_sha, status, trigger, release_id, k8s_job_name, error, created_at, updated_at";
 
@@ -102,7 +111,8 @@ export interface TransitionBuildOptions {
 
 /**
  * Guarded transition: validates with `canTransitionBuild` and updates only if the row is still in
- * `from`. Returns `lost_race` if another writer moved it first.
+ * `from`. Returns `lost_race` if another writer moved it first, and `duplicate_open` if `gitSha`
+ * is already used by another open build.
  */
 export async function transitionBuild(
   db: Queryable | Pool,
@@ -112,9 +122,15 @@ export async function transitionBuild(
   opts: TransitionBuildOptions = {},
 ): Promise<GuardedResult<BuildSummary>> {
   if (!canTransitionBuild(from, to)) return { ok: false, reason: "invalid_transition", current: from };
+  if (!UUID.test(id)) return { ok: false, reason: "not_found" };
   return inTransaction(db, async (tx): Promise<GuardedResult<BuildSummary>> => {
-    const { rows } = await tx.query<BuildRow>(
-      `UPDATE builds SET status = $3,
+    // Setting `git_sha` can collide with another open build for that SHA (`builds_open_sha_unique`).
+    // A savepoint keeps the caller's transaction usable after the violation.
+    await tx.query("SAVEPOINT transition_build");
+    let rows: BuildRow[];
+    try {
+      ({ rows } = await tx.query<BuildRow>(
+        `UPDATE builds SET status = $3,
          updated_at = clock_timestamp(),
          error = COALESCE($4, error),
          release_id = COALESCE($5, release_id),
@@ -124,17 +140,23 @@ export async function transitionBuild(
          finished_at = CASE WHEN $8 THEN clock_timestamp() ELSE finished_at END
        WHERE id = $1 AND status = $2
        RETURNING ${BUILD_COLUMNS}`,
-      [
-        id,
-        from,
-        to,
-        opts.error ?? null,
-        opts.releaseId ?? null,
-        opts.k8sJobName ?? null,
-        opts.gitSha ?? null,
-        isTerminalBuildStatus(to),
-      ],
-    );
+        [
+          id,
+          from,
+          to,
+          opts.error ?? null,
+          opts.releaseId ?? null,
+          opts.k8sJobName ?? null,
+          opts.gitSha ?? null,
+          isTerminalBuildStatus(to),
+        ],
+      ));
+    } catch (err) {
+      await tx.query("ROLLBACK TO SAVEPOINT transition_build");
+      if (isPgError(err, "23505")) return { ok: false, reason: "duplicate_open" };
+      throw err;
+    }
+    await tx.query("RELEASE SAVEPOINT transition_build");
     const row = rows[0];
     if (!row) {
       const cur = await tx.query<{ status: string }>("SELECT status FROM builds WHERE id = $1", [id]);
@@ -193,6 +215,11 @@ export async function listBuilds(
   opts: { limit: number; cursor?: string },
 ): Promise<{ items: BuildSummary[]; nextCursor: string | null }> {
   const limit = Math.min(Math.max(Math.trunc(opts.limit), 1), 200);
+  if (opts.cursor !== undefined) {
+    if (!UUID.test(opts.cursor)) throw new StorageError("INVALID_CURSOR", "cursor is not a valid build id");
+    const known = await db.query("SELECT 1 FROM builds WHERE id = $1", [opts.cursor]);
+    if (known.rowCount === 0) throw new StorageError("INVALID_CURSOR", "cursor does not match any build");
+  }
   const { rows } = await db.query<BuildRow>(
     `SELECT ${BUILD_COLUMNS} FROM builds
      WHERE $2::uuid IS NULL OR (created_at, id) < (SELECT created_at, id FROM builds WHERE id = $2::uuid)
@@ -207,6 +234,7 @@ export async function listBuilds(
 }
 
 export async function getBuildDetail(db: Queryable, id: string): Promise<BuildDetail | null> {
+  if (!UUID.test(id)) return null;
   const { rows } = await db.query<BuildRow>(`SELECT ${BUILD_COLUMNS} FROM builds WHERE id = $1`, [id]);
   const row = rows[0];
   if (!row) return null;

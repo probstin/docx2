@@ -15,6 +15,9 @@ export interface ParsedMarkdown {
   body: string;
 }
 
+/** First line of a frontmatter block: `---` or `---<lang>` (a language starts with a letter). `-----` is not one. */
+const FRONTMATTER_OPEN = /^---(?:[ \t]*|([A-Za-z][^\r\n]*))\r?\n/;
+
 /**
  * Splits YAML frontmatter from the body. Frontmatter is parsed with `yaml` only: unlike
  * gray-matter, there is no `---js` engine, so repository content can never evaluate code.
@@ -22,7 +25,7 @@ export interface ParsedMarkdown {
  */
 export function parseFrontmatter(raw: string, file = "(markdown)"): ParsedMarkdown {
   const text = raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw;
-  const open = /^---([^\r\n]*)\r?\n/.exec(text);
+  const open = FRONTMATTER_OPEN.exec(text);
   if (!open) return { frontmatter: {}, body: text };
 
   const marker = (open[1] ?? "").trim();
@@ -304,7 +307,7 @@ export function extractHeadings(body: string): ExtractedHeadings {
  */
 export function setFrontmatterField(raw: string, key: string, value: unknown): string {
   const text = raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw;
-  const open = /^---([^\r\n]*)\r?\n/.exec(text);
+  const open = FRONTMATTER_OPEN.exec(text);
   const rest = open ? text.slice(open[0].length) : "";
   const close = open ? /^(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/m.exec(rest) : null;
   if (!open || !close) {

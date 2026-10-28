@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import { createReleaseId } from "@docs-platform/contracts";
-import { GitMarkdownSourceAdapter, loadDocsYaml } from "@docs-platform/sources";
+import { GitMarkdownSourceAdapter, readCheckout, type CheckoutContent } from "@docs-platform/sources";
 import { collectManifestSite } from "./manifest-site.js";
 import { buildSite } from "./site.js";
 
@@ -65,6 +65,7 @@ async function runSite(argv: string[]): Promise<void> {
   try {
     let checkoutDir: string;
     let revision: string;
+    let content: Pick<CheckoutContent, "docsYaml" | "documents" | "assetFiles">;
 
     const plainDir =
       !isGitLocation(values.source) &&
@@ -76,6 +77,7 @@ async function runSite(argv: string[]): Promise<void> {
       checkoutDir = path.resolve(values.source);
       revision = values.sha ?? "0".repeat(40);
       console.log(`Using directory ${checkoutDir} as the checkout`);
+      content = await readCheckout(checkoutDir);
     } else {
       const adapter = new GitMarkdownSourceAdapter({ workDir });
       const sha = values.sha ?? (await adapter.resolveBranchHead(values.source, values.branch));
@@ -88,14 +90,19 @@ async function runSite(argv: string[]): Promise<void> {
       });
       checkoutDir = snapshot.checkoutDir;
       revision = snapshot.revision;
+      content = {
+        docsYaml: snapshot.docsYaml,
+        documents: snapshot.documentList,
+        assetFiles: snapshot.assetFiles,
+      };
     }
 
-    const docsYaml = await loadDocsYaml(checkoutDir);
+    const { docsYaml } = content;
     const releaseId = createReleaseId(revision);
     console.log(`Building "${docsYaml.site.title}" as release ${releaseId} (this takes a minute)...`);
     const built = await buildSite({
       checkoutDir,
-      docsYaml,
+      content,
       releaseId,
       publicUrl: values["public-url"],
       workDir,

@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { createRequire } from "node:module";
+import { homedir } from "node:os";
 import {
   cp,
   lstat,
@@ -21,7 +22,6 @@ import {
   computeDocRoute,
   isInside,
   normalizeRepoPath,
-  readCheckout,
   resolveContentPath,
   setFrontmatterField,
 } from "@docs-platform/sources";
@@ -50,10 +50,20 @@ export const PlatformConfigSchema = z.object({
 });
 export type PlatformConfig = z.infer<typeof PlatformConfigSchema>;
 
+/** The already-read repository content: `readCheckout`'s result, or a `GitMarkdownSnapshot` mapped onto it. */
+export interface BuildSiteContent {
+  docsYaml: DocsYaml;
+  /** Parsed Markdown documents. */
+  documents: SourceDocument[];
+  /** Non-Markdown files under the content root (repo-relative). */
+  assetFiles: string[];
+}
+
 export interface BuildSiteOptions {
   /** A checked-out repository (see `GitMarkdownSourceAdapter`). */
   checkoutDir: string;
-  docsYaml: DocsYaml;
+  /** What was read from `checkoutDir`; it is not parsed again, so the config cannot disagree with it. */
+  content: BuildSiteContent;
   releaseId: string;
   /** Public origin of the site, e.g. `https://docs.example.com`. Any path is ignored: use `docsYaml.site.basePath`. */
   publicUrl: string;
@@ -125,14 +135,15 @@ function templateDir(): string {
  * otherwise be served at `/docs/`.
  */
 export async function buildSite(options: BuildSiteOptions): Promise<BuildSiteResult> {
-  const { checkoutDir, docsYaml, releaseId, workDir, outDir } = options;
+  const { checkoutDir, content, releaseId, workDir, outDir } = options;
+  const { docsYaml } = content;
   const started = Date.now();
 
-  const content = await readCheckout(checkoutDir);
   const realCheckout = await realpath(checkoutDir);
   const tplDir = templateDir();
   const siteDir = path.resolve(workDir, "site");
   const absOut = path.resolve(outDir);
+  await assertSafeOutDir(absOut, [checkoutDir, workDir]);
   if (isInside(siteDir, absOut) || isInside(absOut, siteDir)) {
     throw new SiteBuildError("outDir and workDir/site must not overlap");
   }
@@ -220,6 +231,32 @@ export async function buildSite(options: BuildSiteOptions): Promise<BuildSiteRes
   };
 }
 
+/** `realpath` of the deepest existing ancestor, with the missing remainder appended. */
+async function realpathLoose(p: string): Promise<string> {
+  const abs = path.resolve(p);
+  try {
+    return await realpath(abs);
+  } catch {
+    const parent = path.dirname(abs);
+    if (parent === abs) return abs;
+    return path.join(await realpathLoose(parent), path.basename(abs));
+  }
+}
+
+/** `outDir` is deleted before the build, so refuse anything that could take real data with it. */
+async function assertSafeOutDir(absOut: string, protectedDirs: string[]): Promise<void> {
+  const out = await realpathLoose(absOut);
+  const home = await realpathLoose(homedir());
+  if (out === path.parse(out).root) throw new SiteBuildError("refusing to use the filesystem root as outDir");
+  if (out === home) throw new SiteBuildError("refusing to use the home directory as outDir");
+  for (const dir of protectedDirs) {
+    const real = await realpathLoose(dir);
+    if (out === real || isInside(out, real) || isInside(real, out)) {
+      throw new SiteBuildError(`outDir "${absOut}" must not equal, contain or be inside "${dir}"`);
+    }
+  }
+}
+
 function needsLandingSlug(doc: SourceDocument, docsYaml: DocsYaml, contentRootRel: string): boolean {
   const relInRoot = path.posix.relative(contentRootRel, doc.path);
   const natural = computeDocRoute({
@@ -245,44 +282,32 @@ async function linkNodeModules(tplDir: string, siteDir: string): Promise<void> {
   }
 }
 
-/** Copies `<checkout>/assets` (if present), refusing anything that could leave the checkout. */
+/** Copies `<checkout>/assets` (if present), refusing symlinks and anything that is not a regular file. */
 async function copyAssetsDir(realCheckout: string, dest: string): Promise<void> {
   const src = path.join(realCheckout, "assets");
   const info = await lstat(src).catch(() => undefined);
   if (!info) return;
+  if (info.isSymbolicLink()) throw new SiteBuildError("assets must not be a symlink");
   if (!info.isDirectory()) throw new SiteBuildError("assets must be a directory");
   const problems: string[] = [];
-  await copyTree(src, dest, realCheckout, "assets", problems);
+  await copyTree(src, dest, "assets", problems);
   if (problems.length > 0) {
     throw new SiteBuildError(`Unsafe files in assets/:\n${problems.map((p) => `  - ${p}`).join("\n")}`);
   }
 }
 
-async function copyTree(
-  srcDir: string,
-  destDir: string,
-  realCheckout: string,
-  rel: string,
-  problems: string[],
-) {
+async function copyTree(srcDir: string, destDir: string, rel: string, problems: string[]) {
   await mkdir(destDir, { recursive: true });
   for (const entry of await readdir(srcDir, { withFileTypes: true })) {
-    if (entry.name.startsWith(".")) continue;
+    if (entry.name.startsWith(".")) continue; // never copies `.git` or other dotfiles
     const src = path.join(srcDir, entry.name);
     const here = `${rel}/${entry.name}`;
-    if (entry.isDirectory()) {
-      await copyTree(src, path.join(destDir, entry.name), realCheckout, here, problems);
+    if (entry.isSymbolicLink()) {
+      problems.push(`${here}: symlinks are not allowed`);
+    } else if (entry.isDirectory()) {
+      await copyTree(src, path.join(destDir, entry.name), here, problems);
     } else if (entry.isFile()) {
       await copyFile(src, path.join(destDir, entry.name));
-    } else if (entry.isSymbolicLink()) {
-      const target = await realpath(src).catch(() => undefined);
-      if (!target || !isInside(realCheckout, target)) {
-        problems.push(`${here}: symlink resolves outside the checkout`);
-      } else if (!(await stat(target)).isFile()) {
-        problems.push(`${here}: only symlinks to files are supported`);
-      } else {
-        await copyFile(target, path.join(destDir, entry.name));
-      }
     } else {
       problems.push(`${here}: not a regular file`);
     }

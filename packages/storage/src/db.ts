@@ -53,7 +53,7 @@ export async function inTransaction<T>(db: Queryable | Pool, fn: (tx: Queryable)
 
 export class StorageError extends Error {
   constructor(
-    readonly code: "INVALID_EMBEDDING" | "RELEASE_NOT_FOUND" | "INVALID_ARGUMENT",
+    readonly code: "INVALID_EMBEDDING" | "RELEASE_NOT_FOUND" | "INVALID_ARGUMENT" | "INVALID_CURSOR",
     message: string,
   ) {
     super(message);
@@ -68,4 +68,8 @@ export function isPgError(err: unknown, code: string): boolean {
 /** Outcome of a guarded state change. */
 export type GuardedResult<T> =
   | { ok: true; value: T }
-  | { ok: false; reason: "not_found" | "invalid_transition" | "lost_race"; current?: string };
+  | {
+      ok: false;
+      reason: "not_found" | "invalid_transition" | "lost_race" | "duplicate_open";
+      current?: string;
+    };

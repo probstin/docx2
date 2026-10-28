@@ -112,6 +112,16 @@ describe("parseFrontmatter", () => {
     );
   });
 
+  it("treats a thematic break first line as body, not frontmatter", () => {
+    for (const first of ["-----", "---------", "--- x", "---1"]) {
+      const raw = `${first}\n\nSome text\n\n---\n`;
+      expect(parseFrontmatter(raw, "hr.md")).toEqual({ frontmatter: {}, body: raw });
+    }
+    expect(parseFrontmatter("---  \ntitle: T\n---\nbody").frontmatter).toEqual({ title: "T" });
+    expect(parseFrontmatter("---yaml\ntitle: T\n---\nbody").frontmatter).toEqual({ title: "T" });
+    expect(() => parseFrontmatter("---coffee\nx\n---\n")).toThrow(/unsupported frontmatter language/);
+  });
+
   it("refuses YAML tags/aliases explosions and names the file", () => {
     const bomb = "---\na: &a [1,2,3]\nb: &b [*a,*a,*a,*a,*a,*a]\nc: [*b,*b,*b,*b,*b,*b,*b]\n---\nbody";
     expect(() => parseFrontmatter(bomb, "bomb.md")).toThrow(/bomb\.md/);
@@ -163,6 +173,15 @@ describe("computeDocRoute", () => {
     expect(route("guides/deploy.md", { slug: "/" })).toBe("/docs/");
     expect(route("guides/deploy.md", { id: "release" })).toBe("/docs/guides/release");
     expect(route("guides/index.md", { slug: "/custom" })).toBe("/docs/custom");
+  });
+
+  it("keeps raw characters (no percent-encoding) in names and relative slugs", () => {
+    expect(route("my guides/Getting Started.md")).toBe("/docs/my guides/Getting Started");
+    expect(route("guías/instalación.md")).toBe("/docs/guías/instalación");
+    expect(route("guides/deploy.md", { slug: "mise en place" })).toBe("/docs/guides/mise en place");
+    expect(route("guides/deploy.md", { slug: "../été/café" })).toBe("/docs/été/café");
+    expect(route("a/b/deploy.md", { slug: "./x y/../z" })).toBe("/docs/a/b/z");
+    expect(route("guides/deploy.md", { id: "héllo wörld" })).toBe("/docs/guides/héllo wörld");
   });
 
   it("serves the landing page at /docs/ and prefixes basePath", () => {

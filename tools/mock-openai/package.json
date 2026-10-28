@@ -1,0 +1,22 @@
+{
+  "name": "@docs-platform/mock-openai",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Deterministic OpenAI-compatible server (lexical embeddings, grounded chat) for tests and local dev",
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "start": "tsx --conditions=development src/main.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2"
+  }
+}

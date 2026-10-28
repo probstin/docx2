@@ -1,0 +1,72 @@
+# Golden questions for examples/sample-docs. `source` is the repo-relative Markdown path, `anchor`
+# the heading anchor of the section holding the answer (null: intro before the first `##`).
+# `page` simulates the page the user is reading. `outOfScope` questions must be declined.
+questions:
+  - q: What are the default ports of the Scheduler and Runner?
+    source: docs/architecture/overview.md
+    anchor: components
+  - q: How long does rolling back take?
+    source: docs/guides/deployment.md
+    anchor: rollback
+  - q: What is the default deploy timeout?
+    source: docs/guides/deployment.md
+    anchor: deploying-a-service
+  - q: When is the production freeze window?
+    source: docs/guides/deployment.md
+    anchor: freeze-windows
+  - q: How do I roll back database migrations?
+    source: docs/guides/deployment.md
+    anchor: rollback-database
+  - q: How often does the Scheduler probe the health endpoint?
+    source: docs/architecture/overview.md
+    anchor: health
+  - q: How many releases does Atlas keep for rollback?
+    source: docs/architecture/overview.md
+    anchor: data-retention
+  - q: What is the default number of replicas?
+    source: docs/guides/configuration.md
+    anchor: fields
+  - q: What share of traffic does a canary release get first?
+    source: docs/guides/deployment.md
+    anchor: release-strategies
+  - q: How do I store a secret for my service?
+    source: docs/guides/configuration.md
+    anchor: secrets
+  - q: When does the on-call rotation change?
+    source: docs/guides/oncall.md
+    anchor: null
+  - q: What is the response target for a SEV1 incident?
+    source: docs/guides/oncall.md
+    anchor: severity-levels
+  - q: How many times does Forge retry a failed build?
+    source: docs/guides/oncall.md
+    anchor: build-failures
+  - q: What is the maximum container image size?
+    source: docs/reference/02-limits.md
+    anchor: null
+  - q: When does the Gateway close idle connections?
+    source: docs/reference/02-limits.md
+    anchor: request-timeouts
+  - q: What exit code does atlasctl deploy return when it times out?
+    source: docs/reference/cli.md
+    anchor: atlasctl-deploy
+  - q: How long are tokens valid after atlasctl login?
+    source: docs/getting-started.md
+    anchor: install-the-cli
+  - q: Which atlasctl version is the current stable release?
+    source: docs/getting-started.md
+    anchor: install-the-cli
+  # Page context disambiguates: "default port" and "timeout" each appear on several pages.
+  - q: What is the default port?
+    source: docs/guides/configuration.md
+    anchor: fields
+    page: { url: /docs/guides/configuration, heading: Fields }
+  - q: What is the timeout?
+    source: docs/reference/02-limits.md
+    anchor: request-timeouts
+    page: { url: /docs/reference/02-limits, heading: Request timeouts }
+outOfScope:
+  - What is the capital of France?
+  - Who won the football world cup in 2018?
+  - Give me a recipe for sourdough bread
+  - How do I reset my laptop password?

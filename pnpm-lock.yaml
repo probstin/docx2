@@ -85,6 +85,15 @@ importers:
       '@docs-platform/contracts':
         specifier: workspace:*
         version: link:../contracts
+      prism-react-renderer:
+        specifier: 2.4.1
+        version: 2.4.1(react@19.3.1)
+      react-markdown:
+        specifier: 10.1.0
+        version: 10.1.0(@types/react@19.3.0)(react@19.3.1)
+      remark-gfm:
+        specifier: 4.0.1
+        version: 4.0.1
       zod:
         specifier: 4.6.7
         version: 4.6.7
@@ -3755,6 +3764,9 @@ packages:
     resolution: {integrity: sha512-ztqyC3kLto0e9WbNp0aeP+M3kTt+nbaIveGmUxAtZa+8iFgKLUOD4YKM5j+f3QD89bra7UeumolZHKuOXnTmeQ==}
     engines: {node: '>=8'}
 
+  html-url-attributes@3.0.1:
+    resolution: {integrity: sha512-ol6UPyBWqsrO6EJySPz2O7ZSr856WDrEzM5zMqp+FJJLGMW35cLYmmZnl0vztAZxRUoNZJFTCohfjuIJ8I4QBQ==}
+
   html-void-elements@3.0.0:
     resolution: {integrity: sha512-bEqo66MRXsUGxWHV5IP0PUiAWwoEjba4VCzg0LjFJBpchPaTfyfCKTG6bc5F8ucKec3q5y6qOdGyYTSBEvhCrg==}
 
@@ -5434,6 +5446,12 @@ packages:
     peerDependencies:
       react-loadable: '*'
       webpack: '>=4.41.1 || 5.x'
+
+  react-markdown@10.1.0:
+    resolution: {integrity: sha512-qKxVopLT/TyA6BX3Ue5NwabOsAzm0Q7kAPwq6L+wWDwisYs7R8vZ0nRXqq6rkueboxpkjvLGU9fWifiX/ZZFxQ==}
+    peerDependencies:
+      '@types/react': '>=18'
+      react: '>=18'
 
   react-router-config@5.1.1:
     resolution: {integrity: sha512-DuanZjaD8mQp1ppHjgnnUnyOlqYXZVjnov/JzFhjLEwd3Z4dYjMSnqrEzzGThH47vpCOqPPwJM2FtthLeJ8Pbg==}
@@ -11366,6 +11384,8 @@ snapshots:
 
   html-tags@3.3.1: {}
 
+  html-url-attributes@3.0.1: {}
+
   html-void-elements@3.0.0: {}
 
   html-webpack-plugin@5.6.8(webpack@5.112.2(esbuild@0.28.2)(postcss@8.5.32)):
@@ -13271,6 +13291,24 @@ snapshots:
       '@babel/runtime': 7.29.10
       react-loadable: '@docusaurus/react-loadable@6.0.0(react@19.3.1)'
       webpack: 5.112.2(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.32))(esbuild@0.28.2)(html-minifier-terser@7.2.0)(postcss@8.5.32)
+
+  react-markdown@10.1.0(@types/react@19.3.0)(react@19.3.1):
+    dependencies:
+      '@types/hast': 3.0.5
+      '@types/mdast': 4.0.4
+      '@types/react': 19.3.0
+      devlop: 1.1.0
+      hast-util-to-jsx-runtime: 2.3.6
+      html-url-attributes: 3.0.1
+      mdast-util-to-hast: 13.2.1
+      react: 19.3.1
+      remark-parse: 11.0.0
+      remark-rehype: 11.1.2
+      unified: 11.0.5
+      unist-util-visit: 5.2.0
+      vfile: 6.0.3
+    transitivePeerDependencies:
+      - supports-color
 
   react-router-config@5.1.1(react-router@5.3.4(react@19.3.1))(react@19.3.1):
     dependencies:

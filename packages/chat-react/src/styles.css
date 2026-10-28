@@ -201,7 +201,11 @@
 /* Fullscreen gets a readable column rather than edge-to-edge text. */
 .dp-chat-dialog .dp-chat-conversation {
   align-self: center;
-  max-width: 880px;
+  max-width: 860px;
+}
+
+.dp-chat-dialog .dp-chat-markdown {
+  line-height: 1.65;
 }
 
 .dp-chat-dialog .dp-chat-messages {
@@ -283,7 +287,329 @@
 }
 
 .dp-chat-message-content {
+  min-width: 0;
+}
+
+.dp-chat-plain {
   white-space: pre-wrap;
+}
+
+/* ---------- Markdown ---------- */
+
+.dp-chat-markdown > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.dp-chat-markdown > :first-child {
+  margin-top: 0;
+}
+
+.dp-chat-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.dp-chat-markdown p,
+.dp-chat-markdown ul,
+.dp-chat-markdown ol,
+.dp-chat-markdown blockquote,
+.dp-chat-markdown pre,
+.dp-chat-markdown hr,
+.dp-chat-table-scroll {
+  margin: 0 0 0.75em;
+}
+
+.dp-chat-markdown ul,
+.dp-chat-markdown ol {
+  padding-left: 1.4em;
+}
+
+.dp-chat-markdown li + li {
+  margin-top: 0.25em;
+}
+
+.dp-chat-markdown h1,
+.dp-chat-markdown h2,
+.dp-chat-markdown h3,
+.dp-chat-markdown h4 {
+  margin: 1em 0 0.5em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.dp-chat-markdown h1 {
+  font-size: 1.2em;
+}
+
+.dp-chat-markdown h2 {
+  font-size: 1.12em;
+}
+
+.dp-chat-markdown h3,
+.dp-chat-markdown h4 {
+  font-size: 1.04em;
+}
+
+.dp-chat-markdown a {
+  color: var(--dp-chat-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+
+/* Citation markers: small superscript links such as [1]. */
+.dp-chat-markdown a.dp-chat-cite {
+  font-size: 0.75em;
+  font-weight: 600;
+  text-decoration: none;
+  vertical-align: super;
+  line-height: 0;
+  padding: 0 1px;
+}
+
+.dp-chat-markdown a.dp-chat-cite:hover {
+  text-decoration: underline;
+}
+
+.dp-chat-image-link {
+  font-style: italic;
+}
+
+.dp-chat-markdown blockquote {
+  padding: 2px 0 2px 12px;
+  border-left: 3px solid var(--dp-chat-border);
+  color: var(--dp-chat-muted);
+}
+
+.dp-chat-markdown hr {
+  border: 0;
+  border-top: 1px solid var(--dp-chat-border);
+}
+
+.dp-chat-markdown s {
+  opacity: 0.85;
+}
+
+.dp-chat-markdown input[type="checkbox"] {
+  margin: 0 6px 0 0;
+  vertical-align: middle;
+}
+
+.dp-chat-markdown li:has(> input[type="checkbox"]) {
+  list-style: none;
+  margin-left: -1.4em;
+}
+
+/* Tables scroll horizontally inside their own box rather than stretching the bubble. */
+.dp-chat-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: 6px;
+}
+
+.dp-chat-markdown table {
+  border-collapse: collapse;
+  font-size: 0.92em;
+  width: max-content;
+  min-width: 100%;
+}
+
+.dp-chat-markdown th,
+.dp-chat-markdown td {
+  padding: 6px 10px;
+  border: 1px solid var(--dp-chat-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.dp-chat-markdown th {
+  font-weight: 600;
+  background: color-mix(in srgb, var(--dp-chat-fg) 6%, transparent);
+}
+
+/* Inline code */
+.dp-chat-inline-code {
+  padding: 0.1em 0.35em;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--dp-chat-fg) 9%, transparent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88em;
+  overflow-wrap: normal;
+}
+
+/* ---------- Code blocks ---------- */
+
+/* Light defaults; dark values apply under Docusaurus' [data-theme='dark'] on <html>. */
+.dp-chat-root {
+  --dp-code-bg: #f6f8fa;
+  --dp-code-header-bg: #eaeef2;
+  --dp-code-fg: #24292f;
+  --dp-code-muted: #57606a;
+  --dp-code-comment: #6e7781;
+  --dp-code-keyword: #cf222e;
+  --dp-code-string: #0a3069;
+  --dp-code-function: #8250df;
+  --dp-code-number: #0550ae;
+  --dp-code-builtin: #953800;
+  --dp-code-operator: #24292f;
+}
+
+[data-theme="dark"] .dp-chat-root {
+  --dp-code-bg: #161b22;
+  --dp-code-header-bg: #1f262e;
+  --dp-code-fg: #e6edf3;
+  --dp-code-muted: #8b949e;
+  --dp-code-comment: #8b949e;
+  --dp-code-keyword: #ff7b72;
+  --dp-code-string: #a5d6ff;
+  --dp-code-function: #d2a8ff;
+  --dp-code-number: #79c0ff;
+  --dp-code-builtin: #ffa657;
+  --dp-code-operator: #e6edf3;
+}
+
+.dp-chat-codeblock {
+  min-width: 0;
+  max-width: 100%;
+  margin: 0 0 0.75em;
+  border: 1px solid var(--dp-chat-border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--dp-code-bg);
+  color: var(--dp-code-fg);
+  font-size: 13px;
+}
+
+.dp-chat-codeblock-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 6px 4px 12px;
+  border-bottom: 1px solid var(--dp-chat-border);
+  background: var(--dp-code-header-bg);
+  color: var(--dp-code-muted);
+  font-size: 12px;
+}
+
+.dp-chat-codeblock-language {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.dp-chat-copy-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dp-chat-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.dp-chat-copy-button:hover {
+  background: var(--dp-chat-surface);
+  color: var(--dp-chat-fg);
+}
+
+.dp-chat-codeblock-copy {
+  color: var(--dp-code-muted);
+}
+
+.dp-chat-codeblock-copy:hover {
+  color: var(--dp-code-fg);
+}
+
+.dp-chat-message-actions {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: -4px;
+}
+
+.dp-chat-copy-answer {
+  width: 28px;
+  padding: 0;
+  justify-content: center;
+}
+
+/* Code scrolls horizontally and never wraps. */
+.dp-chat-codeblock-pre {
+  margin: 0;
+  padding: 12px;
+  overflow-x: auto;
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  tab-size: 2;
+  color: var(--dp-code-fg);
+  background: transparent;
+}
+
+.dp-chat-codeblock-code {
+  display: inline-block;
+  min-width: 100%;
+  font-family: inherit;
+  background: none;
+  padding: 0;
+  white-space: pre;
+}
+
+.dp-chat-codeblock-line {
+  min-height: 1.55em;
+}
+
+.dp-chat-codeblock .token.comment,
+.dp-chat-codeblock .token.prolog,
+.dp-chat-codeblock .token.doctype,
+.dp-chat-codeblock .token.cdata {
+  color: var(--dp-code-comment);
+  font-style: italic;
+}
+
+.dp-chat-codeblock .token.keyword,
+.dp-chat-codeblock .token.tag,
+.dp-chat-codeblock .token.atrule,
+.dp-chat-codeblock .token.important {
+  color: var(--dp-code-keyword);
+}
+
+.dp-chat-codeblock .token.string,
+.dp-chat-codeblock .token.char,
+.dp-chat-codeblock .token.attr-value,
+.dp-chat-codeblock .token.template-string {
+  color: var(--dp-code-string);
+}
+
+.dp-chat-codeblock .token.function,
+.dp-chat-codeblock .token.class-name,
+.dp-chat-codeblock .token.method {
+  color: var(--dp-code-function);
+}
+
+.dp-chat-codeblock .token.number,
+.dp-chat-codeblock .token.boolean,
+.dp-chat-codeblock .token.constant,
+.dp-chat-codeblock .token.symbol {
+  color: var(--dp-code-number);
+}
+
+.dp-chat-codeblock .token.builtin,
+.dp-chat-codeblock .token.property,
+.dp-chat-codeblock .token.attr-name,
+.dp-chat-codeblock .token.variable {
+  color: var(--dp-code-builtin);
+}
+
+.dp-chat-codeblock .token.operator,
+.dp-chat-codeblock .token.punctuation {
+  color: var(--dp-code-operator);
 }
 
 .dp-chat-message-cancelled {

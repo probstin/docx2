@@ -98,6 +98,22 @@ describe("MessageBubble", () => {
     expect(screen.getByText("Partial answer")).toBeInTheDocument();
   });
 
+  it("copies the raw Markdown of a completed answer", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    const raw = "## Heading\n\n**Bold** text [1]";
+    render(<MessageBubble message={assistant({ content: raw, citations })} />);
+    await user.click(screen.getByRole("button", { name: "Copy answer" }));
+    expect(writeText).toHaveBeenCalledWith(raw);
+    expect(await screen.findByRole("button", { name: "Copied" })).toBeInTheDocument();
+  });
+
+  it("does not offer Copy answer while streaming", () => {
+    render(<MessageBubble message={assistant({ status: "streaming", content: "Partial" })} />);
+    expect(screen.queryByRole("button", { name: "Copy answer" })).toBeNull();
+  });
+
   it("labels the author", () => {
     render(<MessageBubble message={{ id: "u1", role: "user", content: "Hi", status: "complete" }} />);
     expect(screen.getByRole("article", { name: "You" })).toBeInTheDocument();

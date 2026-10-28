@@ -13,6 +13,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
+    "dev:site": "pnpm --filter @docs-platform/builder exec tsx --conditions=development src/dev-site.ts",
     "check": "pnpm typecheck && pnpm lint && pnpm test",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down"

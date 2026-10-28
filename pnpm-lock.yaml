@@ -125,6 +125,12 @@ importers:
 
   packages/docusaurus-template:
     dependencies:
+      '@docs-platform/chat-react':
+        specifier: workspace:*
+        version: link:../chat-react
+      '@docs-platform/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@docusaurus/core':
         specifier: 3.10.2
         version: 3.10.2(@mdx-js/react@3.1.1(@types/react@19.3.0)(react@19.3.1))(esbuild@0.28.2)(postcss@8.5.32)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)

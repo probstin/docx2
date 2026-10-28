@@ -19,6 +19,7 @@ import type * as Preset from "@docusaurus/preset-classic";
 import type { Config } from "@docusaurus/types";
 import { themes as prismThemes } from "prism-react-renderer";
 import restrictMarkdown from "./plugins/restrict-markdown";
+import workspaceBundling from "./plugins/workspace-bundling";
 
 interface PlatformConfig {
   title: string;
@@ -31,6 +32,8 @@ interface PlatformConfig {
   logo: string | null;
   theme: { mode: "light" | "dark" | "system"; primaryColor: string };
   releaseId: string;
+  /** Where the browser reaches the API, e.g. `/api/v1`. */
+  apiBasePath: string;
   /** Directory (relative to this file) holding the team's Markdown, mirroring the repo layout. */
   contentPath: string;
   /** Extra exclude globs for the docs plugin (relative to `contentPath`). */
@@ -75,9 +78,12 @@ const config: Config = {
   // Read by the chat widget through `useDocusaurusContext().siteConfig.customFields`.
   customFields: {
     releaseId: platform.releaseId,
+    apiBasePath: platform.apiBasePath,
     basePath: platform.baseUrl,
     assistant: platform.assistant,
   },
+
+  plugins: [workspaceBundling],
 
   presets: [
     [

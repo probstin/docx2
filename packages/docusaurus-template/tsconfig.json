@@ -3,6 +3,8 @@
   "compilerOptions": {
     "ignoreDeprecations": "6.0",
     "strict": true,
+    // Typecheck against workspace sources (the webpack build uses dist; see ADR 0006).
+    "customConditions": ["development"],
     "types": ["node", "@docusaurus/module-type-aliases"]
   },
   "include": ["docusaurus.config.ts", "sidebars.ts", "plugins", "src"],

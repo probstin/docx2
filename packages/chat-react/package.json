@@ -10,10 +10,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./styles.css": "./src/styles.css"
+    "./styles.css": "./dist/styles.css"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node -e \"require('node:fs').copyFileSync('src/styles.css','dist/styles.css')\"",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p demo/tsconfig.json --noEmit",
     "dev:demo": "vite demo"
   },
@@ -35,5 +35,8 @@
   },
   "dependencies": {
     "@docs-platform/contracts": "workspace:*"
-  }
+  },
+  "files": [
+    "dist"
+  ]
 }

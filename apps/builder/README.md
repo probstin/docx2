@@ -48,6 +48,18 @@ pnpm --filter @docs-platform/builder site \
 `pnpm --filter @docs-platform/builder site --help` for all options. Git credentials come from
 `SOURCE_GIT_USERNAME` / `SOURCE_GIT_TOKEN` and are never written to argv, URLs or logs.
 
+## Run the site in dev against a local API
+
+```bash
+pnpm dev:site [path-to-docs-dir]   # default: examples/sample-docs; serves http://localhost:3000
+```
+
+This calls `prepareSite()` (assemble only, no build) into `.data/dev-site` and runs `docusaurus start`. `/api` is
+proxied to `http://localhost:8080` (override with `DOCS_PLATFORM_API_URL`). The release id is `dev-preview`
+(override with `DEV_RELEASE_ID`; the API rejects unknown ids, so use a real indexed release to get answers).
+The template consumes `contracts` and `chat-react` from `dist/`, which the builder builds when stale (ADR 0006).
+`buildSite({ apiBasePath })` sets the browser-side API path (default `/api/v1`).
+
 ## Preview the output
 
 ```bash

@@ -41,6 +41,9 @@ importers:
       '@docs-platform/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@docs-platform/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
       fastify:
         specifier: 5.12.7
         version: 5.12.7

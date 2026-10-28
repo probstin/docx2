@@ -1,4 +1,4 @@
-import { Histogram, Registry, collectDefaultMetrics } from "prom-client";
+import { Counter, Gauge, Histogram, Registry, collectDefaultMetrics } from "prom-client";
 
 /** Per-app registry (not the global one) so multiple apps can coexist in tests. */
 export function createMetrics() {
@@ -11,6 +11,23 @@ export function createMetrics() {
     buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30],
     registers: [registry],
   });
-  return { registry, httpDuration };
+  const chatRequests = new Counter({
+    name: "chat_requests_total",
+    help: "Chat requests by outcome",
+    labelNames: ["outcome"] as const,
+    registers: [registry],
+  });
+  const chatStreamDuration = new Histogram({
+    name: "chat_stream_duration_seconds",
+    help: "Duration of chat streams in seconds",
+    buckets: [0.25, 0.5, 1, 2, 5, 10, 20, 30, 60, 120],
+    registers: [registry],
+  });
+  const chatActiveStreams = new Gauge({
+    name: "chat_active_streams",
+    help: "Chat streams currently open",
+    registers: [registry],
+  });
+  return { registry, httpDuration, chatRequests, chatStreamDuration, chatActiveStreams };
 }
 export type Metrics = ReturnType<typeof createMetrics>;

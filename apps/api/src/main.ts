@@ -1,7 +1,12 @@
+import {
+  createChatModelClient,
+  createChatService,
+  createEmbeddingsClient,
+  type Logger,
+} from "@docs-platform/rag";
 import { createPool, migrate } from "@docs-platform/storage";
 import { buildApp } from "./app.js";
 import { loadRuntimeConfig } from "./config.js";
-import { placeholderChatService, provideChatService } from "./services/chat.js";
 import { databaseReadiness } from "./services/readiness.js";
 import { createReleaseService } from "./services/releases.js";
 import { createSiteService } from "./services/site.js";
@@ -18,8 +23,22 @@ async function main(): Promise<void> {
     throw err;
   }
 
-  // WIRING POINT: swap `placeholderChatService` for the `@docs-platform/rag` implementation.
-  const chat = provideChatService(placeholderChatService);
+  // The RAG service is built before the app, so it logs through a forwarder bound to the
+  // app's logger once that exists.
+  const appLog: { current?: Logger } = {};
+  const log: Logger = {
+    debug: (fields, msg) => appLog.current?.debug(fields, msg),
+    info: (fields, msg) => appLog.current?.info(fields, msg),
+    warn: (fields, msg) => appLog.current?.warn(fields, msg),
+    error: (fields, msg) => appLog.current?.error(fields, msg),
+  };
+  const chat = createChatService({
+    pool,
+    embeddings: createEmbeddingsClient(config.models),
+    chat: createChatModelClient(config.models),
+    retrieval: config.retrieval,
+    log,
+  });
 
   const app = await buildApp({
     config,
@@ -29,6 +48,7 @@ async function main(): Promise<void> {
     readiness: [databaseReadiness(pool)],
     onClose: [() => pool.end()],
   });
+  appLog.current = app.log.child({ component: "rag" });
 
   let closing = false;
   const shutdown = (signal: string) => {

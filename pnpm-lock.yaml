@@ -41,6 +41,9 @@ importers:
       '@docs-platform/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@docs-platform/rag':
+        specifier: workspace:*
+        version: link:../../packages/rag
       '@docs-platform/storage':
         specifier: workspace:*
         version: link:../../packages/storage

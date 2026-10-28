@@ -224,44 +224,34 @@ function extractExplicitId(rawText: string): { text: string; id: string | undefi
   return { text: rawText, id: undefined };
 }
 
-export interface ExtractedHeadings {
-  /** `##`-`######` headings with their Docusaurus anchors. */
-  headings: SourceHeading[];
-  /** Text of the first `#` heading, if any. */
-  h1: string | undefined;
-}
-
 const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})(.*)$/;
+const FENCE_CLOSE = /^ {0,3}(`{3,}|~{3,})[ \t]*$/;
 const ATX_HEADING = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/;
 
 /**
- * Line-based heading scanner. It understands fenced code blocks and HTML comments (headings
- * inside either are not headings), and reproduces the Docusaurus heading-id algorithm:
- *
- *  - ids come from `github-slugger` 1.x, one slugger per document, run over **every** heading
- *    including the `#` title, so a later `## Foo` after `# Foo` becomes `foo-1`;
- *  - an explicit `{#custom-id}` (or trailing `<!-- #custom-id -->`) is used verbatim, is stripped
- *    from the text and does not touch the slugger's duplicate counter.
- *
- * Only ATX headings (`## Title`) are recognized; setext underlines are not.
+ * How a line participates in block structure: `fenceOpen` is the opening line of a fenced code
+ * block, `fence` the rest of it (closing line included), `comment` a line of a multi-line HTML
+ * comment, and `text` anything else (only `text` lines can be headings).
  */
-export function extractHeadings(body: string): ExtractedHeadings {
-  const slugger = new GithubSlugger();
-  const headings: SourceHeading[] = [];
-  let h1: string | undefined;
+export type LineKind = "text" | "comment" | "fence" | "fenceOpen";
 
+/** Classifies each line, tracking fenced code blocks and multi-line HTML comments. */
+export function classifyLines(lines: readonly string[]): LineKind[] {
+  const kinds: LineKind[] = [];
   let fence: { char: string; length: number } | undefined;
   let inComment = false;
 
-  for (const line of body.split(/\r?\n/)) {
+  for (const line of lines) {
     if (fence) {
-      const close = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(line);
+      kinds.push("fence");
+      const close = FENCE_CLOSE.exec(line);
       if (close && (close[1] as string)[0] === fence.char && (close[1] as string).length >= fence.length) {
         fence = undefined;
       }
       continue;
     }
     if (inComment) {
+      kinds.push("comment");
       if (line.includes("-->")) inComment = false;
       continue;
     }
@@ -272,6 +262,7 @@ export function extractHeadings(body: string): ExtractedHeadings {
       // A backtick fence's info string may not contain backticks (else it is an inline code span).
       if (!(marker[0] === "`" && (open[2] ?? "").includes("`"))) {
         fence = { char: marker[0] as string, length: marker.length };
+        kinds.push("fenceOpen");
         continue;
       }
     }
@@ -279,10 +270,47 @@ export function extractHeadings(body: string): ExtractedHeadings {
     const trimmed = line.trimStart();
     if (trimmed.startsWith("<!--") && !trimmed.includes("-->")) {
       inComment = true;
+      kinds.push("comment");
       continue;
     }
+    kinds.push("text");
+  }
+  return kinds;
+}
 
-    const match = ATX_HEADING.exec(line);
+/** A heading as the scanner sees it: the contract fields plus its position in the body. */
+export interface ScannedHeading extends SourceHeading {
+  /** 0-based index of the heading's line in `body.split(/\r?\n/)`. */
+  line: number;
+}
+
+export interface ScannedHeadings {
+  headings: ScannedHeading[];
+  h1: string | undefined;
+}
+
+/**
+ * Line-based heading scanner. It understands fenced code blocks and HTML comments (headings
+ * inside either are not headings), and reproduces the Docusaurus heading-id algorithm:
+ *
+ *  - ids come from `github-slugger` 1.x, one slugger per document, run over **every** heading
+ *    including the `#` title, so a later `## Foo` after `# Foo` becomes `foo-1`;
+ *  - an explicit `{#custom-id}` (or trailing `<!-- #custom-id -->`) is used verbatim, is stripped
+ *    from the text and does not touch the slugger's duplicate counter.
+ *
+ * Only ATX headings (`## Title`) are recognized; setext underlines are not. Headings whose slug
+ * is empty (e.g. `## 🚀`) are skipped.
+ */
+export function scanHeadings(body: string): ScannedHeadings {
+  const slugger = new GithubSlugger();
+  const headings: ScannedHeading[] = [];
+  let h1: string | undefined;
+
+  const lines = body.split(/\r?\n/);
+  const kinds = classifyLines(lines);
+  for (const [line, text_] of lines.entries()) {
+    if (kinds[line] !== "text") continue;
+    const match = ATX_HEADING.exec(text_);
     if (!match) continue;
     const depth = (match[1] as string).length;
     const raw = (match[2] ?? "").trim();
@@ -294,10 +322,23 @@ export function extractHeadings(body: string): ExtractedHeadings {
     if (depth === 1) {
       h1 ??= text;
     } else if (anchor !== "") {
-      headings.push({ text, anchor, depth });
+      headings.push({ text, anchor, depth, line });
     }
   }
   return { headings, h1 };
+}
+
+export interface ExtractedHeadings {
+  /** `##`-`######` headings with their Docusaurus anchors. */
+  headings: SourceHeading[];
+  /** Text of the first `#` heading, if any. */
+  h1: string | undefined;
+}
+
+/** `scanHeadings` without the line positions. */
+export function extractHeadings(body: string): ExtractedHeadings {
+  const { headings, h1 } = scanHeadings(body);
+  return { headings: headings.map(({ text, anchor, depth }) => ({ text, anchor, depth })), h1 };
 }
 
 /**

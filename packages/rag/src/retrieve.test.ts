@@ -1,6 +1,7 @@
 import type { ChunkHit } from "@docs-platform/storage";
 import { describe, expect, it } from "vitest";
 import { HEADING_BOOST, PAGE_BOOST, applyPageBoost, normalizeRoute } from "./retrieve.js";
+import { pageContextFromRequest } from "./service.js";
 
 function hit(
   id: string,
@@ -51,6 +52,19 @@ describe("applyPageBoost", () => {
     expect(applyPageBoost(hits, undefined).map((c) => c.chunkId)).toEqual(["other", "page", "pageHeading"]);
     const out = applyPageBoost(hits, { pageUrl: "/docs/page", anchor: "rollback" });
     expect(out[0]!.chunkId).toBe("pageHeading");
+  });
+
+  it("boosts the chunk whose anchor is in the request's pageUrl fragment", () => {
+    const ctx = pageContextFromRequest({
+      releaseId: "r",
+      pageUrl: "/docs/page#rollback",
+    });
+    expect(ctx.anchor).toBe("rollback");
+    const out = applyPageBoost(hits, ctx);
+    expect(out[0]).toMatchObject({ chunkId: "pageHeading", boosted: true });
+    expect(out[0]!.score).toBeCloseTo(0.45 + PAGE_BOOST + HEADING_BOOST);
+    // The hash does not prevent the same-page match for chunks without that anchor.
+    expect(out.find((c) => c.chunkId === "page")!.score).toBeCloseTo(0.47 + PAGE_BOOST);
   });
 
   it("normalizes routes", () => {

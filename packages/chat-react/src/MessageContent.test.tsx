@@ -84,6 +84,22 @@ describe("MessageContent citation markers", () => {
     expect(marker).toHaveClass("dp-chat-cite");
   });
 
+  it("links each number of grouped markers and leaves uncited numbers as text", () => {
+    const two: Citation[] = [
+      ...citations,
+      { ...citations[0]!, index: 2, url: "/docs/other", anchor: undefined, heading: undefined },
+    ];
+    const { container } = render(
+      <MessageContent text="A [1, 2] B [1,2] C [2][1] D [1, 3]." citations={two} />,
+    );
+    const links = screen.getAllByRole("link").map((l) => [l.textContent, l.getAttribute("href")]);
+    const one = ["[1]", "/docs/guides/deployment#rollback"];
+    const sec = ["[2]", "/docs/other"];
+    expect(links).toEqual([one, sec, one, sec, sec, one, one]);
+    expect(screen.queryByRole("link", { name: "[3]" })).toBeNull();
+    expect(container.textContent).toBe("A [1][2] B [1][2] C [2][1] D [1][3].");
+  });
+
   it("leaves [2] as plain text when no citation with that index exists", () => {
     render(<MessageContent text="Also see [2] for details." citations={citations} />);
     expect(screen.queryByRole("link", { name: "[2]" })).toBeNull();

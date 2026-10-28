@@ -10,12 +10,14 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { createEmbeddingsClient } from "./clients.js";
 import { indexRelease } from "./ingest.js";
-import { DEFAULT_MIN_SCORE, retrieve } from "./retrieve.js";
+import { retrieve } from "./retrieve.js";
 import type { EmbeddingsClient } from "./types.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SAMPLE = path.resolve(here, "../../../examples/sample-docs");
 const DIMS = 1024;
+/** 0.22 is tuned for the lexical mock embedder; the production default (0.3) lives in the contracts. */
+const MOCK_MIN_SCORE = 0.22;
 const RELEASE_ID = "20260101000000-abcdef1";
 
 interface Golden {
@@ -71,7 +73,7 @@ describe.skipIf(!process.env.PGHOST)("golden questions (sample-docs, mock embedd
     await mock?.close();
   });
 
-  const ask = (q: string, page?: { url: string; heading?: string }, minScore = DEFAULT_MIN_SCORE) =>
+  const ask = (q: string, page?: { url: string; heading?: string }, minScore = MOCK_MIN_SCORE) =>
     retrieve({
       pool,
       releaseId: RELEASE_ID,
@@ -110,7 +112,7 @@ describe.skipIf(!process.env.PGHOST)("golden questions (sample-docs, mock embedd
     }
     const rate = hits / golden.questions.length;
     console.log(
-      `Golden eval (minScore=${DEFAULT_MIN_SCORE}): ${hits}/${golden.questions.length} in top 3 (${(rate * 100).toFixed(0)}%); ` +
+      `Golden eval (minScore=${MOCK_MIN_SCORE}): ${hits}/${golden.questions.length} in top 3 (${(rate * 100).toFixed(0)}%); ` +
         `${golden.outOfScope.length}/${golden.outOfScope.length} out-of-scope declined\n${[...lines, ...declined].join("\n")}`,
     );
     expect(failures, "out-of-scope questions that were not declined").toEqual([]);

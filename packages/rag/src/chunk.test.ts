@@ -31,6 +31,20 @@ describe("chunkDocument", () => {
     }
   });
 
+  it("keeps anchors aligned when the scanner skips a heading with an empty slug", async () => {
+    const chunks = await chunkDocument(
+      doc(
+        ["# Title", "## 🚀", "launch text", "## Install", "install text", "## Usage", "usage text"].join(
+          "\n",
+        ),
+      ),
+    );
+    const install = chunks.find((c) => c.content.includes("install text"))!;
+    expect(install).toMatchObject({ heading: "Install", anchor: "install" });
+    expect(chunks.find((c) => c.content.includes("usage text"))).toMatchObject({ anchor: "usage" });
+    expect(chunks.find((c) => c.content.includes("launch text"))!.anchor).toBeUndefined();
+  });
+
   it("handles duplicate headings, explicit ids and headings inside fences", async () => {
     const d = doc(
       [

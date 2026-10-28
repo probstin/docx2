@@ -118,6 +118,23 @@ describe("POST /api/v1/chat validation", () => {
     expect(ErrorBodySchema.parse(res.json()).error.code).toBe("VALIDATION_FAILED");
   });
 
+  it("accepts a pageUrl with a fragment and passes it through to the chat service", async () => {
+    const seen: string[] = [];
+    const app = await make({
+      async *stream({ request }) {
+        seen.push(request.context.pageUrl);
+        yield { type: "start", messageId: "m1" };
+        yield { type: "done", status: "grounded" };
+      },
+    });
+    const res = await post(
+      app,
+      goodBody({ context: { releaseId: RELEASE, pageUrl: "/product/guides/deploy#rollback" } }),
+    );
+    expect(res.statusCode).toBe(200);
+    expect(seen).toEqual(["/product/guides/deploy#rollback"]);
+  });
+
   it("404 RELEASE_UNKNOWN as JSON", async () => {
     const app = await make(happy);
     const res = await post(

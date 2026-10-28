@@ -1,7 +1,7 @@
 import { CHAT_LIMITS, type ChatHistoryMessage, type ChatRequestInput } from "@docs-platform/contracts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChatApiError, isAbortError, streamChat } from "./api-client.js";
-import { clearSession, createSessionWriter, loadSession } from "./session-store.js";
+import { clearSession, createSessionWriter, loadSession, saveSession } from "./session-store.js";
 import type { PageContextInfo, UiMessage } from "./types.js";
 
 export interface UseChatOptions {
@@ -84,7 +84,14 @@ export function useChat(options: UseChatOptions): UseChatResult {
 
   const messagesRef = useRef<UiMessage[]>([]);
   const [messages, setMessages] = useState<UiMessage[]>(() => {
-    const loaded = loadSession(storageKey)?.messages ?? [];
+    const stored = loadSession(storageKey);
+    let loaded = stored?.messages ?? [];
+    if (stored && stored.releaseId !== options.releaseId) {
+      // Citations may point at anchors the new release no longer has, and the old turns are not
+      // context for it: start fresh and overwrite the stored session.
+      loaded = [];
+      saveSession(storageKey, { releaseId: options.releaseId, messages: [] });
+    }
     messagesRef.current = loaded;
     return loaded;
   });

@@ -1,5 +1,5 @@
 import type { SourceDocument } from "@docs-platform/contracts";
-import { inlineToText } from "@docs-platform/sources";
+import { classifyLines, scanHeadings } from "@docs-platform/sources";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import type { Chunk } from "./types.js";
 
@@ -16,9 +16,6 @@ export const DEFAULT_CHUNK_OVERLAP = 200;
 const FENCE_KEEP_FACTOR = 3;
 const HEADING_SEPARATOR = " › ";
 
-const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})(.*)$/;
-const ATX_HEADING = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/;
-
 interface Section {
   depth: number;
   heading?: string;
@@ -27,63 +24,19 @@ interface Section {
 }
 
 /**
- * Splits the body at `##`-`######` headings. The line-level fence/comment tracking mirrors the
- * sources package's heading scanner; anchors are not recomputed here but taken, in order, from
- * `doc.metadata.headings` (which that scanner produced), so they match the built HTML exactly.
+ * Splits the body at the `##`-`######` headings the sources scanner found, by line index. Using
+ * the scanner's own positions (rather than re-detecting headings) keeps anchors aligned with the
+ * built HTML even when the scanner skips a heading (empty slug): that line simply stays in the
+ * preceding section.
  */
 function splitSections(doc: SourceDocument): Section[] {
-  const known = doc.metadata.headings;
-  let next = 0;
+  const lines = doc.content.split(/\r?\n/);
   const sections: Section[] = [{ depth: 0, lines: [] }];
-  let fence: { char: string; length: number } | undefined;
-  let inComment = false;
-
-  for (const line of doc.content.split(/\r?\n/)) {
-    const cur = sections[sections.length - 1]!;
-    if (fence) {
-      cur.lines.push(line);
-      const close = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(line);
-      if (close && close[1]![0] === fence.char && close[1]!.length >= fence.length) fence = undefined;
-      continue;
-    }
-    if (inComment) {
-      cur.lines.push(line);
-      if (line.includes("-->")) inComment = false;
-      continue;
-    }
-    const open = FENCE_OPEN.exec(line);
-    if (open) {
-      const marker = open[1]!;
-      if (!(marker[0] === "`" && (open[2] ?? "").includes("`"))) {
-        fence = { char: marker[0]!, length: marker.length };
-        cur.lines.push(line);
-        continue;
-      }
-    }
-    const trimmed = line.trimStart();
-    if (trimmed.startsWith("<!--") && !trimmed.includes("-->")) {
-      inComment = true;
-      cur.lines.push(line);
-      continue;
-    }
-    const m = ATX_HEADING.exec(line);
-    if (!m || m[1]!.length === 1) {
-      cur.lines.push(line);
-      continue;
-    }
-    const depth = m[1]!.length;
-    const known_ = known[next];
-    let heading: string;
-    let anchor: string | undefined;
-    if (known_ && known_.depth === depth) {
-      heading = known_.text;
-      anchor = known_.anchor;
-      next++;
-    } else {
-      // Heading without an anchor (the scanner skips empty slugs): keep the text, no anchor.
-      heading = inlineToText(m[2] ?? "").trim();
-    }
-    sections.push({ depth, heading, anchor, lines: [line] });
+  const headings = new Map(scanHeadings(doc.content).headings.map((h) => [h.line, h]));
+  for (const [i, line] of lines.entries()) {
+    const h = headings.get(i);
+    if (h) sections.push({ depth: h.depth, heading: h.text, anchor: h.anchor, lines: [line] });
+    else sections[sections.length - 1]!.lines.push(line);
   }
   return sections;
 }
@@ -97,31 +50,19 @@ interface Segment {
 function segments(text: string): Segment[] {
   const out: Segment[] = [];
   let buf: string[] = [];
-  let fence: { char: string; length: number } | undefined;
-  const flush = (fenced: boolean): void => {
+  let fenced = false;
+  const flush = (): void => {
     if (buf.length) out.push({ text: buf.join("\n"), fenced });
     buf = [];
   };
-  for (const line of text.split("\n")) {
-    if (fence) {
-      buf.push(line);
-      const close = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(line);
-      if (close && close[1]![0] === fence.char && close[1]!.length >= fence.length) {
-        fence = undefined;
-        flush(true);
-      }
-      continue;
-    }
-    const open = FENCE_OPEN.exec(line);
-    if (open && !(open[1]![0] === "`" && (open[2] ?? "").includes("`"))) {
-      flush(false);
-      fence = { char: open[1]![0]!, length: open[1]!.length };
-      buf.push(line);
-      continue;
-    }
-    buf.push(line);
+  const lines = text.split("\n");
+  for (const [i, kind] of classifyLines(lines).entries()) {
+    const inFence = kind === "fence" || kind === "fenceOpen";
+    if (kind === "fenceOpen" || inFence !== fenced) flush();
+    fenced = inFence;
+    buf.push(lines[i]!);
   }
-  flush(fence !== undefined);
+  flush();
   return out;
 }
 
@@ -172,7 +113,6 @@ export async function chunkDocument(doc: SourceDocument, options: ChunkOptions =
       stack.push({ depth: section.depth, text: section.heading });
     }
     const text = section.lines.join("\n").trim();
-    // Skip sections with no body (e.g. a heading directly followed by a subheading).
     // Skip sections with no body: heading-only sections and an intro holding nothing but the `#` title.
     const body = (section.heading !== undefined ? section.lines.slice(1) : section.lines)
       .filter((l) => !/^ {0,3}#[ \t]/.test(l))

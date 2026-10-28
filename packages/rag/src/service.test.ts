@@ -7,7 +7,23 @@ import type { ChatMessage, ChatModelClient, EmbeddingsClient } from "./types.js"
 
 const RELEASE = "20260101000000-abcdef1";
 
-function fakePool(scores: number[]): Pool {
+const RELEASE_ROW = {
+  id: RELEASE,
+  git_sha: "abc",
+  status: "ACTIVE",
+  artifact_path: "releases/x",
+  embedding_model: "test-embed",
+  embedding_dimensions: 2,
+  docs_yaml: {},
+  manifest: null,
+  created_at: new Date(0),
+  ready_at: null,
+  activated_at: null,
+  deactivated_at: null,
+  pruned_at: null,
+};
+
+function fakePool(scores: number[], release: Partial<typeof RELEASE_ROW> = {}, onRelease?: () => void): Pool {
   const rows = scores.map((s, i) => ({
     chunk_id: `c${i}`,
     document_id: `d${i}`,
@@ -21,8 +37,13 @@ function fakePool(scores: number[]): Pool {
     score: s,
   }));
   return {
-    query: async (sql: string) =>
-      sql.includes("embedding_dimensions") ? { rows: [{ embedding_dimensions: 2 }] } : { rows },
+    query: async (sql: string) => {
+      if (sql.includes("embedding_model")) {
+        onRelease?.();
+        return { rows: [{ ...RELEASE_ROW, ...release }] };
+      }
+      return sql.includes("embedding_dimensions") ? { rows: [{ embedding_dimensions: 2 }] } : { rows };
+    },
   } as unknown as Pool;
 }
 
@@ -37,6 +58,7 @@ const request: ChatRequest = {
   context: { releaseId: RELEASE, pageUrl: "/docs/0", heading: "Rollback" },
 };
 const identity = {} as PlatformIdentity;
+const models = { embeddingModel: "test-embed", embeddingDimensions: 2 };
 const retrieval = { RETRIEVAL_TOP_K: 4, RETRIEVAL_PAGE_CONTEXT_BOOST: true, RETRIEVAL_MIN_SCORE: 0.3 };
 
 async function collect(it: AsyncIterable<ChatStreamEvent>): Promise<ChatStreamEvent[]> {
@@ -55,12 +77,54 @@ function chatOf(parts: string[], onCall?: (m: ChatMessage[]) => void): ChatModel
 }
 
 describe("createChatService", () => {
+  it("refuses a release embedded with another model without calling the embeddings client", async () => {
+    let embedded = false;
+    let releaseReads = 0;
+    const warnings: string[] = [];
+    const svc = createChatService({
+      pool: fakePool([0.9], { embedding_model: "old-model" }, () => releaseReads++),
+      embeddings: {
+        ...embeddings,
+        embedQuery: async () => {
+          embedded = true;
+          return [1, 0];
+        },
+      },
+      chat: chatOf(["x"]),
+      retrieval,
+      ...models,
+      log: { debug() {}, info() {}, error() {}, warn: (_f, msg) => void warnings.push(msg) },
+    });
+    for (let i = 0; i < 2; i++) {
+      const events = await collect(svc.stream({ request, identity, signal: new AbortController().signal }));
+      expect(events.map((e) => e.type)).toEqual(["start", "error"]);
+      expect(events[1]).toMatchObject({ type: "error", code: "UPSTREAM_UNAVAILABLE" });
+    }
+    expect(embedded).toBe(false);
+    expect(releaseReads).toBe(1); // cached per release
+    expect(warnings[0]).toContain("old-model");
+    expect(warnings[0]).toContain("test-embed");
+  });
+
+  it("refuses a release with different embedding dimensions", async () => {
+    const svc = createChatService({
+      pool: fakePool([0.9], { embedding_dimensions: 8 }),
+      embeddings,
+      chat: chatOf(["x"]),
+      retrieval,
+      ...models,
+    });
+    const events = await collect(svc.stream({ request, identity, signal: new AbortController().signal }));
+    expect(events.at(-1)).toMatchObject({ type: "error", code: "UPSTREAM_UNAVAILABLE" });
+  });
+
   it("streams start, deltas, citations of referenced sources, done(grounded)", async () => {
     const svc = createChatService({
       pool: fakePool([0.8, 0.6, 0.5]),
       embeddings,
       chat: chatOf(["Run the command ", "[2]", "."]),
       retrieval,
+      ...models,
     });
     const events = await collect(svc.stream({ request, identity, signal: new AbortController().signal }));
     expect(events.map((e) => e.type)).toEqual(["start", "delta", "delta", "delta", "citations", "done"]);
@@ -84,6 +148,7 @@ describe("createChatService", () => {
       embeddings,
       chat: chatOf(["No cites"]),
       retrieval,
+      ...models,
     });
     const events = await collect(svc.stream({ request, identity, signal: new AbortController().signal }));
     const c = events.find((e) => e.type === "citations") as Extract<ChatStreamEvent, { type: "citations" }>;
@@ -98,6 +163,7 @@ describe("createChatService", () => {
       embeddings,
       chat: chatOf(["x"], () => (called = true)),
       retrieval,
+      ...models,
     });
     const events = await collect(svc.stream({ request, identity, signal: new AbortController().signal }));
     expect(events.map((e) => e.type)).toEqual(["start", "delta", "done"]);
@@ -118,7 +184,7 @@ describe("createChatService", () => {
         }
       },
     };
-    const svc = createChatService({ pool: fakePool([0.9]), embeddings, chat, retrieval });
+    const svc = createChatService({ pool: fakePool([0.9]), embeddings, chat, retrieval, ...models });
     const events: ChatStreamEvent[] = [];
     for await (const e of svc.stream({ request, identity, signal: ac.signal })) {
       events.push(e);
@@ -137,7 +203,7 @@ describe("createChatService", () => {
         throw new Error("secret-token connection reset");
       },
     };
-    const svc = createChatService({ pool: fakePool([0.9]), embeddings, chat, retrieval });
+    const svc = createChatService({ pool: fakePool([0.9]), embeddings, chat, retrieval, ...models });
     const events = await collect(svc.stream({ request, identity, signal: new AbortController().signal }));
     expect(events.map((e) => e.type)).toEqual(["start", "delta", "error"]);
     const err = events.at(-1) as Extract<ChatStreamEvent, { type: "error" }>;
@@ -150,7 +216,13 @@ describe("createChatService", () => {
       ...embeddings,
       embedQuery: async () => Promise.reject(new Error("down")),
     };
-    const svc = createChatService({ pool: fakePool([0.9]), embeddings: bad, chat: chatOf(["x"]), retrieval });
+    const svc = createChatService({
+      pool: fakePool([0.9]),
+      embeddings: bad,
+      chat: chatOf(["x"]),
+      retrieval,
+      ...models,
+    });
     const events = await collect(svc.stream({ request, identity, signal: new AbortController().signal }));
     expect(events.map((e) => e.type)).toEqual(["start", "error"]);
   });

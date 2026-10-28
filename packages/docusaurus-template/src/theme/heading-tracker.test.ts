@@ -1,65 +1,48 @@
 import { describe, expect, it } from "vitest";
-import { TOP_OFFSET_PX, headingText, trackHeadings } from "./heading-tracker";
+import { HEADING_SELECTOR, TOP_OFFSET_PX, currentHeading, headingText } from "./heading-tracker";
 import { stripSiteTitle } from "./strip-site-title";
 
-type Callback = (entries: { target: unknown; boundingClientRect: { top: number } }[]) => void;
+const h = (text: string, top: number) => ({ textContent: text, getBoundingClientRect: () => ({ top }) });
 
-class FakeObserver {
-  static last: FakeObserver;
-  observed: unknown[] = [];
-  disconnected = false;
-  constructor(
-    readonly callback: Callback,
-    readonly options: { rootMargin: string },
-  ) {
-    FakeObserver.last = this;
-  }
-  observe(target: unknown) {
-    this.observed.push(target);
-  }
-  disconnect() {
-    this.disconnected = true;
-  }
-}
-
-const h = (text: string) => ({ textContent: text });
-
-describe("trackHeadings", () => {
-  it("returns the last heading scrolled past the top, and nothing before the first", () => {
-    const [a, b, c] = [h("Intro​"), h("Setup"), h("Deploy")];
-    const tracker = trackHeadings({ querySelectorAll: () => [a, b, c] }, FakeObserver);
-    const io = FakeObserver.last;
-    expect(io.observed).toEqual([a, b, c]);
-    expect(io.options.rootMargin).toBe(`-${TOP_OFFSET_PX}px 0px -100% 0px`);
-
-    // Initial report: everything is below the line.
-    io.callback([a, b, c].map((target) => ({ target, boundingClientRect: { top: 500 } })));
-    expect(tracker.current()).toBeUndefined();
-
-    io.callback([{ target: a, boundingClientRect: { top: -20 } }]);
-    expect(tracker.current()).toBe("Intro");
-    io.callback([
-      { target: b, boundingClientRect: { top: 10 } },
-      { target: c, boundingClientRect: { top: 300 } },
-    ]);
-    expect(tracker.current()).toBe("Setup");
-
-    // Scrolling back up: b is below the line again.
-    io.callback([{ target: b, boundingClientRect: { top: 200 } }]);
-    expect(tracker.current()).toBe("Intro");
-
-    tracker.dispose();
-    expect(io.disconnected).toBe(true);
-    expect(tracker.current()).toBeUndefined();
+describe("currentHeading", () => {
+  it("returns the last heading at or above the navbar line, and nothing before the first", () => {
+    const root = (...els: ReturnType<typeof h>[]) => ({ querySelectorAll: () => els });
+    expect(currentHeading(root(h("Intro", 500), h("Setup", 900)))).toBeUndefined();
+    expect(currentHeading(root(h("Intro\u200b", -20), h("Setup", 500)))).toBe("Intro");
+    expect(currentHeading(root(h("Intro", -300), h("Setup", TOP_OFFSET_PX), h("Deploy", 300)))).toBe("Setup");
   });
 
-  it("is inert without headings or IntersectionObserver", () => {
-    expect(trackHeadings({ querySelectorAll: () => [] }, FakeObserver).current()).toBeUndefined();
-    expect(trackHeadings({ querySelectorAll: () => [h("x")] }, undefined).current()).toBeUndefined();
+  it("reflects a jump immediately because it reads the layout at call time", () => {
+    const tops = { a: 10, b: 600, c: 1200 };
+    const els = [
+      { textContent: "A", getBoundingClientRect: () => ({ top: tops.a }) },
+      { textContent: "B", getBoundingClientRect: () => ({ top: tops.b }) },
+      { textContent: "C", getBoundingClientRect: () => ({ top: tops.c }) },
+    ];
+    const root = { querySelectorAll: () => els };
+    expect(currentHeading(root)).toBe("A");
+    // Jump to C (e.g. an anchor link or End key): no scroll events needed.
+    Object.assign(tops, { a: -2000, b: -1400, c: 20 });
+    expect(currentHeading(root)).toBe("C");
+    // Jump back to the top.
+    Object.assign(tops, { a: 300, b: 900, c: 1500 });
+    expect(currentHeading(root)).toBeUndefined();
+  });
+
+  it("queries only article h2/h3 headings with ids", () => {
+    const selectors: string[] = [];
+    currentHeading({
+      querySelectorAll: (s) => {
+        selectors.push(s);
+        return [];
+      },
+    });
+    expect(selectors).toEqual([HEADING_SELECTOR]);
+    expect(HEADING_SELECTOR).toBe("article h2[id], article h3[id]");
   });
 
   it("normalizes heading text", () => {
-    expect(headingText(h("  Set​ up \n now "))).toBe("Set up now");
+    expect(headingText({ textContent: "  Set\u200b up \n now " })).toBe("Set up now");
   });
 });
 

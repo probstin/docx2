@@ -9,7 +9,8 @@ interface MdNode {
   data?: { hProperties?: Record<string, string>; [key: string]: unknown };
 }
 
-const CITATION_PATTERN = /\[(\d+)\]/g;
+/** Same grammar as the server's `buildCitations`: `[1]`, `[1, 2]`, `[1,2]`; `[1][2]` is two matches. */
+const CITATION_PATTERN = /\[(\d+(?:\s*,\s*\d+)*)\]/g;
 
 /** Node types whose text must be left alone: a `[1]` inside a link or code is not a citation marker. */
 const OPAQUE_TYPES = new Set(["link", "linkReference", "inlineCode", "code", "definition"]);
@@ -45,21 +46,33 @@ function linkifyChildren(node: MdNode, urlByIndex: Map<number, string>) {
 function splitText(value: string, urlByIndex: Map<number, string>): MdNode[] {
   const parts: MdNode[] = [];
   let cursor = 0;
+  const pushText = (text: string) => {
+    const last = parts[parts.length - 1];
+    if (last?.type === "text") last.value += text;
+    else parts.push({ type: "text", value: text });
+  };
   for (const match of value.matchAll(CITATION_PATTERN)) {
-    const index = Number(match[1]);
-    const url = urlByIndex.get(index);
+    const indexes = (match[1] as string).split(",").map(Number);
+    if (!indexes.some((index) => urlByIndex.has(index))) continue;
     const start = match.index ?? 0;
-    if (url === undefined) continue;
-    if (start > cursor) parts.push({ type: "text", value: value.slice(cursor, start) });
-    parts.push({
-      type: "link",
-      url,
-      children: [{ type: "text", value: match[0] }],
-      data: { hProperties: { className: "dp-chat-cite", title: `Source ${index}` } },
-    });
+    if (start > cursor) pushText(value.slice(cursor, start));
+    // Each number becomes its own marker; numbers without a citation stay as text.
+    for (const index of indexes) {
+      const url = urlByIndex.get(index);
+      if (url === undefined) {
+        pushText(`[${index}]`);
+        continue;
+      }
+      parts.push({
+        type: "link",
+        url,
+        children: [{ type: "text", value: `[${index}]` }],
+        data: { hProperties: { className: "dp-chat-cite", title: `Source ${index}` } },
+      });
+    }
     cursor = start + match[0].length;
   }
   if (parts.length === 0) return [{ type: "text", value }];
-  if (cursor < value.length) parts.push({ type: "text", value: value.slice(cursor) });
+  if (cursor < value.length) pushText(value.slice(cursor));
   return parts;
 }

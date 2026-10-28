@@ -3,6 +3,7 @@ import { CHAT_LIMITS } from "@docs-platform/contracts";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildHistory, useChat } from "./useChat.js";
+import { loadSession } from "./session-store.js";
 import { useChatMode } from "./useChatMode.js";
 import {
   CITATION,
@@ -211,6 +212,26 @@ describe("useChat", () => {
     const second = setup(okFetch());
     expect(second.result.current.messages.map((m) => m.role)).toEqual(["user", "assistant"]);
     expect(second.result.current.messages[1]?.status).toBe("cancelled");
+  });
+
+  it("starts a fresh conversation when the stored session is from another release", async () => {
+    const first = setup(okFetch());
+    act(() => first.result.current.send("q"));
+    await waitFor(() => expect(first.result.current.isStreaming).toBe(false));
+    first.unmount();
+    expect(loadSession("t:chat")?.messages).toHaveLength(2);
+
+    const second = renderHook(() =>
+      useChat({
+        endpoint: "/api/v1/chat",
+        releaseId: "20270101000000-1234567",
+        getPageContext: () => ({ url: "http://x/docs/a" }),
+        storageKey: "t:chat",
+        fetchImpl: okFetch(),
+      }),
+    );
+    expect(second.result.current.messages).toEqual([]);
+    expect(loadSession("t:chat")).toEqual({ releaseId: "20270101000000-1234567", messages: [] });
   });
 
   it("works when storage throws", async () => {

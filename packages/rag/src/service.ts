@@ -6,7 +6,7 @@ import type {
   PlatformIdentity,
   RetrievalEnv,
 } from "@docs-platform/contracts";
-import type { Pool } from "@docs-platform/storage";
+import { getRelease, type Pool } from "@docs-platform/storage";
 import { buildPrompt, type BuildPromptInput } from "./prompt.js";
 import { retrieve, type RetrievedChunk } from "./retrieve.js";
 import type { ChatModelClient, EmbeddingsClient, Logger, PageContext } from "./types.js";
@@ -32,6 +32,10 @@ export interface CreateChatServiceInput {
   embeddings: EmbeddingsClient;
   chat: ChatModelClient;
   retrieval: RetrievalEnv;
+  /** Configured query-embedding model (`EMBEDDINGS_MODEL`); releases built with another are refused. */
+  embeddingModel: string;
+  /** Configured query-embedding dimensions (`EMBEDDINGS_DIMENSIONS`). */
+  embeddingDimensions: number;
   log?: Logger;
   promptLimits?: Pick<BuildPromptInput, "maxPromptChars" | "maxHistoryChars">;
 }
@@ -81,6 +85,26 @@ function abortPromise(signal: AbortSignal): Promise<never> {
 
 export function createChatService(input: CreateChatServiceInput): RagChatService {
   const log = input.log ?? noopLogger;
+  // Releases are immutable, so their embedding model never changes once read.
+  const compatible = new Map<string, boolean>();
+  const isCompatible = async (releaseId: string): Promise<boolean> => {
+    const known = compatible.get(releaseId);
+    if (known !== undefined) return known;
+    const release = await getRelease(input.pool, releaseId);
+    // Unknown release: let retrieval run (it finds nothing); don't cache.
+    if (!release) return true;
+    const ok =
+      release.embeddingModel === input.embeddingModel &&
+      release.embeddingDimensions === input.embeddingDimensions;
+    if (!ok) {
+      log.warn(
+        { releaseId },
+        `release was embedded with ${release.embeddingModel} (${release.embeddingDimensions}d) but queries use ${input.embeddingModel} (${input.embeddingDimensions}d); rebuild the index`,
+      );
+    }
+    compatible.set(releaseId, ok);
+    return ok;
+  };
   return {
     async *stream({ request, signal }) {
       const messageId = randomUUID();
@@ -89,6 +113,15 @@ export function createChatService(input: CreateChatServiceInput): RagChatService
       aborted.catch(() => undefined);
       try {
         const releaseId = request.context.releaseId;
+        if (!(await Promise.race([isCompatible(releaseId), aborted]))) {
+          yield {
+            type: "error",
+            code: "UPSTREAM_UNAVAILABLE",
+            message:
+              "The documentation index was built with a different embedding model; it must be rebuilt.",
+          };
+          return;
+        }
         const pageContext = pageContextFromRequest(request.context);
         const result = await Promise.race([
           retrieve({

@@ -8,7 +8,6 @@ export const HEADING_BOOST = 0.05;
 /** Candidates fetched per requested result, so boosted chunks can overtake unboosted ones. */
 export const OVERFETCH_FACTOR = 3;
 export const DEFAULT_TOP_K = 8;
-export const DEFAULT_MIN_SCORE = 0.22;
 
 export interface RetrievedChunk extends ChunkHit {
   /** Cosine similarity as returned by the database. Used for the minScore cutoff. */
@@ -25,7 +24,8 @@ export interface RetrieveInput {
   embeddings: EmbeddingsClient;
   pageContext?: PageContext;
   topK?: number;
-  minScore?: number;
+  /** Cosine cutoff; the caller supplies it (the service takes it from `RETRIEVAL_MIN_SCORE`). */
+  minScore: number;
   pageBoost?: boolean;
   signal?: AbortSignal;
 }
@@ -77,7 +77,7 @@ export function applyPageBoost(hits: ChunkHit[], pageContext: PageContext | unde
 
 export async function retrieve(input: RetrieveInput): Promise<RetrieveResult> {
   const topK = input.topK ?? DEFAULT_TOP_K;
-  const minScore = input.minScore ?? DEFAULT_MIN_SCORE;
+  const { minScore } = input;
   const embedding = await input.embeddings.embedQuery(input.query, input.signal);
   const hits = await searchChunks(input.pool, {
     releaseId: input.releaseId,

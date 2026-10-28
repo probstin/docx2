@@ -26,7 +26,11 @@ export const ModelsEnvSchema = z.object({
   CHAT_BASE_URL: z.url(),
   CHAT_MODEL: z.string().min(1),
   CHAT_API_KEY: z.string().default(""),
-  CHAT_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.2),
+  /**
+   * Sent only when set. Leave it unset for models that accept only their default
+   * temperature (e.g. OpenAI reasoning models reject anything but 1).
+   */
+  CHAT_TEMPERATURE: z.coerce.number().min(0).max(2).optional(),
   CHAT_MAX_TOKENS: z.coerce.number().int().positive().default(1024),
   EMBEDDINGS_BASE_URL: z.url(),
   EMBEDDINGS_MODEL: z.string().min(1),

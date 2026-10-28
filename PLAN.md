@@ -10,7 +10,7 @@
 
 Build a simple, repeatable documentation platform that development teams can adopt without becoming experts in Docusaurus, RAG, CI/CD, or vector databases.
 
-A team maintains **Markdown, assets, and a small `docs.yaml` file** in a private Git repository. An operator deploys the platform using a Helm chart, supplying Git access, an existing PostgreSQL/pgvector database, internal OpenAI-compatible chat and embedding services, storage, and ingress configuration. The platform then:
+A team maintains **Markdown, assets, and a small `docs.yaml` file** in a private Git repository. An operator deploys the platform using a Helm chart, supplying Git access, an existing PostgreSQL/pgvector database, internal OpenAI-compatible chat and embedding services, **storage**, and ingress configuration. The platform then:
 
 1. Clones the repository and generates a branded static documentation site.
 2. Ingests the same documentation revision into a searchable vector index.

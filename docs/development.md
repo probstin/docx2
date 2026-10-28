@@ -47,6 +47,7 @@ Set these in `.env`:
 - **Embeddings model:** `EMBEDDINGS_BASE_URL`, `EMBEDDINGS_MODEL`, `EMBEDDINGS_API_KEY`
 - **`EMBEDDINGS_DIMENSIONS`:** must equal the model's output size. Every call is checked against it.
 - **Retrieval:** `RETRIEVAL_MIN_SCORE` is 0.22 in `.env.example`, which is tuned for the lexical mock embedder. Start real models around 0.3 and tune from there. A low value lets weak matches through; a high value makes the assistant decline more often.
+- **Chat temperature:** `CHAT_TEMPERATURE` is sent only when set. Leave it unset for reasoning models, which reject any value but their default.
 - **Re-index after any embedding model change.** Chat refuses a release that was indexed with a different embedding model or dimension.
 - **Private CA:** set `NODE_EXTRA_CA_CERTS=/path/to/ca.pem`.
 

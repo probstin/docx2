@@ -110,7 +110,7 @@ export function createChatModelClient(env: ModelsEnv): ChatModelClient {
     model: env.CHAT_MODEL,
     apiKey: env.CHAT_API_KEY || NO_KEY,
     configuration: { baseURL: env.CHAT_BASE_URL },
-    temperature: env.CHAT_TEMPERATURE,
+    ...(env.CHAT_TEMPERATURE === undefined ? {} : { temperature: env.CHAT_TEMPERATURE }),
     maxTokens: env.CHAT_MAX_TOKENS,
     streaming: true,
     maxRetries: 1,

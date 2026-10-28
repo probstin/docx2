@@ -22,6 +22,6 @@ describe("env contracts", () => {
       EMBEDDINGS_DIMENSIONS: "1024",
     });
     expect(models.EMBEDDINGS_DIMENSIONS).toBe(1024);
-    expect(models.CHAT_TEMPERATURE).toBe(0.2);
+    expect(models.CHAT_TEMPERATURE).toBeUndefined();
   });
 });

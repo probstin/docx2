@@ -1,0 +1,19 @@
+{
+  "title": "Placeholder",
+  "tagline": "",
+  "url": "http://localhost",
+  "baseUrl": "/",
+  "logo": null,
+  "theme": { "mode": "system", "primaryColor": "#2563eb" },
+  "releaseId": "00000000000000-0000000",
+  "contentPath": "docs",
+  "docsExclude": ["**/_*/**", "**/__tests__/**"],
+  "assistant": {
+    "enabled": true,
+    "title": "Ask AI",
+    "welcomeMessage": "How can I help?",
+    "pageContext": true,
+    "citations": true,
+    "expandable": true
+  }
+}
